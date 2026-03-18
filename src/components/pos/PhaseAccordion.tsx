@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, memo, useCallback } from "react";
 import { PHASES } from "@/lib/pos/constants";
 import { diasEntre } from "@/lib/pos/utils";
 import type { KanbanCard } from "@/lib/pos/types";
@@ -42,6 +42,8 @@ const PHASE_SHORT: Record<string, string> = {
   "Cancelada": "Cancelada",
 };
 
+const S_ICON_COLOR = { color: "#1E3A5F" } as const;
+
 function formatDateBR(dateStr: string): string {
   if (!dateStr) return "";
   const parts = dateStr.split("-");
@@ -49,11 +51,12 @@ function formatDateBR(dateStr: string): string {
   return dateStr;
 }
 
-function MiniCard({ order: o, color, onClick, onPhaseChange }: { order: KanbanCard; color: string; onClick: () => void; onPhaseChange?: (orderId: string, newPhase: string) => void }) {
+const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChange }: { order: KanbanCard; color: string; onClick: () => void; onPhaseChange?: (orderId: string, newPhase: string) => void }) {
   const diasFase = diasEntre(o.dataFase);
+  const borderStyle = useMemo(() => ({ borderLeftColor: color }), [color]);
 
   return (
-    <div className="mini-card" style={{ borderLeftColor: color }} onClick={onClick}>
+    <div className="mini-card" style={borderStyle} onClick={onClick}>
       {onPhaseChange && (
         <div className="mini-card-phase" onClick={(e) => e.stopPropagation()}>
           <select
@@ -92,14 +95,14 @@ function MiniCard({ order: o, color, onClick, onPhaseChange }: { order: KanbanCa
         <span className="mini-card-tecnico"><i className="fas fa-user-cog" /> {o.tecnico}</span>
         <span className="mini-card-dias">{diasFase}d</span>
         <span className="mini-card-icons">
-          {o.temPPV && <i className="fas fa-box" style={{ color: "#1E3A5F" }} />}
-          {o.temReq && <i className="fas fa-shopping-cart" style={{ color: "#1E3A5F" }} />}
-          {o.temRel && <i className="fas fa-file-alt" style={{ color: "#1E3A5F" }} />}
+          {o.temPPV && <i className="fas fa-box" style={S_ICON_COLOR} />}
+          {o.temReq && <i className="fas fa-shopping-cart" style={S_ICON_COLOR} />}
+          {o.temRel && <i className="fas fa-file-alt" style={S_ICON_COLOR} />}
         </span>
       </div>
     </div>
   );
-}
+});
 
 const COLLAPSED_DEFAULT = new Set(["Concluída", "Cancelada"]);
 
@@ -107,26 +110,28 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
   const [activePhase, setActivePhase] = useState<string>("");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set(COLLAPSED_DEFAULT));
 
-  const toggleCollapse = (phase: string) => {
+  const toggleCollapse = useCallback((phase: string) => {
     setCollapsed((prev) => {
       const next = new Set(prev);
       if (next.has(phase)) next.delete(phase);
       else next.add(phase);
       return next;
     });
-  };
+  }, []);
+
+  // Pre-compute lowercase search term once
+  const searchLower = useMemo(() => searchTerm.toLowerCase(), [searchTerm]);
 
   const filtered = useMemo(() => {
-    const term = searchTerm.toLowerCase();
     return orders.filter(
       (o) =>
-        (!term ||
-          o.cliente.toLowerCase().includes(term) ||
-          o.id.includes(term) ||
-          o.servSolicitado.toLowerCase().includes(term)) &&
+        (!searchLower ||
+          o.cliente.toLowerCase().includes(searchLower) ||
+          o.id.includes(searchLower) ||
+          o.servSolicitado.toLowerCase().includes(searchLower)) &&
         (!activePhase || o.status === activePhase)
     );
-  }, [orders, searchTerm, activePhase]);
+  }, [orders, searchLower, activePhase]);
 
   const counts = useMemo(() => {
     const map: Record<string, number> = {};
@@ -146,6 +151,9 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
     }
     return map;
   }, [filtered, activePhase]);
+
+  // Stable click handlers per card (avoid inline arrow in .map)
+  const handleCardClick = useCallback((o: KanbanCard) => onCardClick(o), [onCardClick]);
 
   return (
     <>
@@ -181,7 +189,7 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
                 key={o.id}
                 order={o}
                 color={PHASE_COLORS[o.status] || "#64748B"}
-                onClick={() => onCardClick(o)}
+                onClick={() => handleCardClick(o)}
                 onPhaseChange={onPhaseChange}
               />
             ))}
@@ -209,7 +217,7 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
                       key={o.id}
                       order={o}
                       color={PHASE_COLORS[phase] || "#64748B"}
-                      onClick={() => onCardClick(o)}
+                      onClick={() => handleCardClick(o)}
                       onPhaseChange={onPhaseChange}
                     />
                   ))}

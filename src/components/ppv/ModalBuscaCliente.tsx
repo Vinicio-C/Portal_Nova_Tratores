@@ -58,6 +58,11 @@ export default function ModalBuscaCliente({ open, onClose, onSelect }: Props) {
     setTimeout(() => inputRef.current?.focus(), 200);
   }, [open]);
 
+  // Limpar debounce ao desmontar
+  useEffect(() => {
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, []);
+
   function handleChange(value: string) {
     setTermo(value);
     if (debounceRef.current) clearTimeout(debounceRef.current);

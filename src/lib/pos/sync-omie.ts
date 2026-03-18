@@ -69,10 +69,9 @@ export async function syncClientes(): Promise<{ total: number; novos: number; at
 
     totalPaginas = res.total_de_paginas;
 
-    for (const c of res.clientes_cadastro || []) {
+    const registros = (res.clientes_cadastro || []).map((c) => {
       const endereco = [c.endereco, c.endereco_numero].filter(Boolean).join(", ");
-
-      const registro = {
+      return {
         id_omie: String(c.codigo_cliente_omie),
         id_cliente: c.codigo_cliente_integracao || String(c.codigo_cliente_omie),
         cnpj_cpf: c.cnpj_cpf || "",
@@ -80,27 +79,38 @@ export async function syncClientes(): Promise<{ total: number; novos: number; at
         nome_fantasia: c.nome_fantasia || "",
         email: c.email || "",
         telefone: c.telefone1_numero || "",
-        endereco: endereco,
+        endereco,
         cidade: c.cidade || "",
         estado: c.estado || "",
         cep: c.cep || "",
       };
+    });
 
-      // Tenta achar existente pelo id_omie
-      const { data: existente } = await supabase
+    if (registros.length > 0) {
+      // Busca existentes de uma vez
+      const ids = registros.map((r) => r.id_omie);
+      const { data: existentes } = await supabase
         .from(TBL_CLIENTES)
         .select("id_omie")
-        .eq("id_omie", registro.id_omie)
-        .limit(1);
+        .in("id_omie", ids);
+      const existentesSet = new Set((existentes || []).map((e) => e.id_omie));
 
-      if (existente && existente.length > 0) {
-        await supabase.from(TBL_CLIENTES).update(registro).eq("id_omie", registro.id_omie);
-        atualizados++;
-      } else {
-        await supabase.from(TBL_CLIENTES).insert(registro);
-        novos++;
+      const paraInserir = registros.filter((r) => !existentesSet.has(r.id_omie));
+      const paraAtualizar = registros.filter((r) => existentesSet.has(r.id_omie));
+
+      // Batch insert
+      if (paraInserir.length > 0) {
+        await supabase.from(TBL_CLIENTES).insert(paraInserir);
+        novos += paraInserir.length;
       }
-      total++;
+
+      // Batch update via upsert (onConflict on id_omie)
+      if (paraAtualizar.length > 0) {
+        await supabase.from(TBL_CLIENTES).upsert(paraAtualizar, { onConflict: "id_omie" });
+        atualizados += paraAtualizar.length;
+      }
+
+      total += registros.length;
     }
 
     pagina++;
@@ -139,21 +149,24 @@ export async function syncProjetos(): Promise<{ total: number; novos: number }> 
 
     totalPaginas = res.total_de_paginas;
 
-    for (const p of res.cadastro || []) {
-      // Verifica se já existe pelo nome
-      const { data: existente } = await supabase
+    const projetosPagina = res.cadastro || [];
+    if (projetosPagina.length > 0) {
+      const nomes = projetosPagina.map((p) => p.nome);
+      const { data: existentes } = await supabase
         .from(TBL_PROJETOS_DB)
         .select("Nome_Projeto")
-        .eq("Nome_Projeto", p.nome)
-        .limit(1);
+        .in("Nome_Projeto", nomes);
+      const existentesSet = new Set((existentes || []).map((e) => e.Nome_Projeto));
 
-      if (!existente || existente.length === 0) {
-        await supabase.from(TBL_PROJETOS_DB).insert({
-          Nome_Projeto: p.nome,
-        });
-        novos++;
+      const novosProj = projetosPagina
+        .filter((p) => !existentesSet.has(p.nome))
+        .map((p) => ({ Nome_Projeto: p.nome }));
+
+      if (novosProj.length > 0) {
+        await supabase.from(TBL_PROJETOS_DB).insert(novosProj);
+        novos += novosProj.length;
       }
-      total++;
+      total += projetosPagina.length;
     }
 
     pagina++;

@@ -23,30 +23,35 @@ export async function sincronizarStatusPPV(idOrdem: string, novoStatusPOS: strin
   const ppvIds = String(idPpvStr).split(",").map((s) => s.trim()).filter(Boolean);
   if (ppvIds.length === 0) return;
 
-  for (const ppvId of ppvIds) {
-    // Verifica status atual do PPV (não move se já Fechado ou Cancelado)
-    const { data: ppv } = await supabase
-      .from(TBL_PEDIDOS)
-      .select("status")
-      .eq("id_pedido", ppvId)
-      .limit(1);
+  // Busca todos os PPVs de uma vez
+  const { data: ppvs } = await supabase
+    .from(TBL_PEDIDOS)
+    .select("id_pedido, status")
+    .in("id_pedido", ppvIds);
 
-    const statusAtual = ppv?.[0]?.status;
-    if (!statusAtual || statusAtual === "Fechado" || statusAtual === "Cancelado") continue;
-    if (statusAtual === novoStatusPPV) continue;
+  // Filtra os que podem ser atualizados
+  const aAtualizar = (ppvs || []).filter(
+    (p) => p.status && p.status !== "Fechado" && p.status !== "Cancelado" && p.status !== novoStatusPPV
+  );
 
-    // Atualiza status do PPV
-    await supabase
-      .from(TBL_PEDIDOS)
-      .update({ status: novoStatusPPV })
-      .eq("id_pedido", ppvId);
+  if (aAtualizar.length === 0) return;
 
-    // Registra log no PPV
-    await supabase.from(TBL_LOGS_PPV).insert({
+  const idsAtualizar = aAtualizar.map((p) => p.id_pedido);
+
+  // Update em batch
+  await supabase
+    .from(TBL_PEDIDOS)
+    .update({ status: novoStatusPPV })
+    .in("id_pedido", idsAtualizar);
+
+  // Insert logs em batch
+  const agora = new Date().toISOString();
+  await supabase.from(TBL_LOGS_PPV).insert(
+    idsAtualizar.map((ppvId) => ({
       id_ppv: ppvId,
-      data_hora: new Date().toISOString(),
+      data_hora: agora,
       acao: `Status alterado para "${novoStatusPPV}" (sync com ${idOrdem})`,
       usuario_email: "admin.sistema@novatratores.com",
-    });
-  }
+    }))
+  );
 }

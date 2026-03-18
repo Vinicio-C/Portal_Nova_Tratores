@@ -19,6 +19,7 @@ export default function SearchModal({ title, placeholder, apiUrl, paramName, vis
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const abortRef = useRef<AbortController | null>(null);
 
   // Auto-focus on open
   useEffect(() => {
@@ -28,18 +29,25 @@ export default function SearchModal({ title, placeholder, apiUrl, paramName, vis
     if (!visible) { setTermo(""); setResults([]); }
   }, [visible]);
 
-  // Debounced search - auto-busca ao digitar
+  // Debounced search with abort for stale requests
   useEffect(() => {
     if (!visible || termo.length < 2) { setResults([]); return; }
     clearTimeout(timerRef.current);
     timerRef.current = setTimeout(async () => {
+      abortRef.current?.abort();
+      const ac = new AbortController();
+      abortRef.current = ac;
       setLoading(true);
-      const res = await fetch(`${apiUrl}?${paramName}=${encodeURIComponent(termo)}`);
-      const data = await res.json();
-      setResults(data);
-      setLoading(false);
+      try {
+        const res = await fetch(`${apiUrl}?${paramName}=${encodeURIComponent(termo)}`, { signal: ac.signal });
+        const data = await res.json();
+        if (!ac.signal.aborted) setResults(data);
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+      }
+      if (!ac.signal.aborted) setLoading(false);
     }, 300);
-    return () => clearTimeout(timerRef.current);
+    return () => { clearTimeout(timerRef.current); abortRef.current?.abort(); };
   }, [termo, visible, apiUrl, paramName]);
 
   if (!visible) return null;

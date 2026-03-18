@@ -109,16 +109,17 @@ async function omieCall<T>(endpoint: string, call: string, param: Record<string,
     body: JSON.stringify(payload),
   });
 
-  const data = await response.json();
-
-  if (data?.faultstring) {
-    throw new Error(`Omie [${data.faultcode}]: ${data.faultstring}`);
-  }
-
+  // Rate limit deve ser verificado ANTES de parsear JSON (pode falhar com 429)
   if (response.status === 429) {
     console.warn("Rate limit Omie — aguardando 60s...");
     await new Promise((r) => setTimeout(r, 60000));
     return omieCall(endpoint, call, param);
+  }
+
+  const data = await response.json();
+
+  if (data?.faultstring) {
+    throw new Error(`Omie [${data.faultcode}]: ${data.faultstring}`);
   }
 
   return data as T;
@@ -552,13 +553,11 @@ async function criarPedidoVendaNoOmie(
     const numPedido = resposta.numero_pedido || String(resposta.codigo_pedido || "");
     console.log(`[Omie PV] ✓ ${idOrdem} → Pedido de Venda nº ${numPedido}`);
 
-    // Salva o número do pedido de venda nos PPVs
-    for (const ppvId of ppvIds) {
-      await supabase
-        .from(TBL_PEDIDOS)
-        .update({ pedido_omie: numPedido })
-        .eq("id_pedido", ppvId);
-    }
+    // Salva o número do pedido de venda em todos os PPVs (batch)
+    await supabase
+      .from(TBL_PEDIDOS)
+      .update({ pedido_omie: numPedido })
+      .in("id_pedido", ppvIds);
 
     return { numero: numPedido };
   } catch (err) {
@@ -570,28 +569,39 @@ async function criarPedidoVendaNoOmie(
 
 // --- Fecha PPVs vinculados quando OS é enviada para Omie ---
 async function fecharPPVsVinculados(ppvIds: string[], idOrdem: string): Promise<void> {
-  for (const ppvId of ppvIds) {
-    const { data: ppv } = await supabase
-      .from(TBL_PEDIDOS)
-      .select("status")
-      .eq("id_pedido", ppvId)
-      .limit(1);
+  // Busca todos os PPVs de uma vez (batch)
+  const { data: ppvs } = await supabase
+    .from(TBL_PEDIDOS)
+    .select("id_pedido, status")
+    .in("id_pedido", ppvIds);
 
-    const statusAtual = ppv?.[0]?.status;
-    if (!statusAtual || statusAtual === "Fechado" || statusAtual === "Cancelado") continue;
+  // Filtra os que podem ser fechados
+  const aFechar = (ppvs || []).filter(
+    (p) => p.status && p.status !== "Fechado" && p.status !== "Cancelado"
+  );
 
-    await supabase
-      .from(TBL_PEDIDOS)
-      .update({ status: "Fechado" })
-      .eq("id_pedido", ppvId);
+  if (aFechar.length === 0) return;
 
-    await supabase.from(TBL_LOGS_PPV).insert({
+  const idsFechar = aFechar.map((p) => p.id_pedido);
+
+  // Update em batch
+  await supabase
+    .from(TBL_PEDIDOS)
+    .update({ status: "Fechado" })
+    .in("id_pedido", idsFechar);
+
+  // Insert logs em batch
+  const agora = new Date().toISOString();
+  await supabase.from(TBL_LOGS_PPV).insert(
+    idsFechar.map((ppvId) => ({
       id_ppv: ppvId,
-      data_hora: new Date().toISOString(),
+      data_hora: agora,
       acao: `PPV fechado (OS ${idOrdem} enviada para Omie)`,
       usuario_email: "admin.sistema@novatratores.com",
-    });
+    }))
+  );
 
+  for (const ppvId of idsFechar) {
     console.log(`[PPV] ✓ ${ppvId} fechado (OS ${idOrdem} enviada para Omie)`);
   }
 }

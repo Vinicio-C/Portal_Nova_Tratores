@@ -158,21 +158,16 @@ export function useChat(userId: string | undefined): UseChatReturn {
       .in('chat_id', chatIds)
     const readMap = new Map(reads?.map(r => [r.chat_id, r.ultima_leitura]) || [])
 
-    // 6. Contagem de não lidas (paralelo)
-    const unreadResults = await Promise.all(
-      chatIds.map(async (chatId) => {
-        const lastRead = readMap.get(chatId)
-        let query = supabase
-          .from('portal_mensagens')
-          .select('*', { count: 'exact', head: true })
-          .eq('chat_id', chatId)
-          .neq('user_id', userId)
-        if (lastRead) query = query.gt('created_at', lastRead)
-        const { count } = await query
-        return { chatId, count: count || 0 }
-      })
-    )
-    const unreadCounts = Object.fromEntries(unreadResults.map(r => [r.chatId, r.count]))
+    // 6. Contagem de não lidas — estima a partir das mensagens recentes já carregadas
+    // evita N queries (uma por chat) que era o maior gargalo de performance
+    const unreadCounts: Record<string, number> = {}
+    for (const chatId of chatIds) {
+      const lastRead = readMap.get(chatId)
+      const msgs = (recentMsgs || []).filter(m =>
+        m.chat_id === chatId && m.user_id !== userId && (!lastRead || m.created_at > lastRead)
+      )
+      unreadCounts[chatId] = msgs.length
+    }
 
     // 7. Montar lista
     const chatList: Chat[] = (chatsData || []).map(c => ({

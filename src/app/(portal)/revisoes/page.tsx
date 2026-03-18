@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissoes } from "@/hooks/usePermissoes";
@@ -113,37 +113,46 @@ function DashboardAgrupadoInner() {
     }
   };
 
-  useEffect(() => {
-    fetchEmails();
-  }, []);
-
-  const emailsDoChassis = (chassis: string): EmailRevisao[] => {
-    if (!chassis) return [];
-    return emails.filter(e => e.chassisFinal && chassis.endsWith(e.chassisFinal));
-  };
-
-  const emailDaRevisao = (chassis: string, rev: string): EmailRevisao | null => {
-    const horasRev = rev.replace("h", "");
-    return emailsDoChassis(chassis).find(e => e.horas === horasRev) || null;
-  };
-
+  // Fetch emails + tratores em paralelo
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      const { data, error } = await supabase
-        .from("tratores")
-        .select("*")
-        .order("Cliente", { ascending: true });
-
-      if (error) {
+      const [, tratorRes] = await Promise.all([
+        fetchEmails(),
+        supabase.from("tratores").select("*").order("Cliente", { ascending: true }),
+      ]);
+      if (tratorRes.error) {
         setErro("Falha ao carregar dados. Verifique sua conexão.");
-      } else if (data) {
-        setTratores(data);
+      } else if (tratorRes.data) {
+        setTratores(tratorRes.data);
       }
       setLoading(false);
     };
     fetchData();
   }, []);
+
+  // Mapa de emails por sufixo de chassis (últimos 4 dígitos) para evitar O(emails×tratores) a cada render
+  const emailsByChassisSuffix = useMemo(() => {
+    const map = new Map<string, EmailRevisao[]>();
+    for (const e of emails) {
+      if (!e.chassisFinal) continue;
+      const key = e.chassisFinal;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(e);
+    }
+    return map;
+  }, [emails]);
+
+  const emailsDoChassis = useCallback((chassis: string): EmailRevisao[] => {
+    if (!chassis) return [];
+    const suffix = chassis.slice(-4);
+    return emailsByChassisSuffix.get(suffix) || [];
+  }, [emailsByChassisSuffix]);
+
+  const emailDaRevisao = useCallback((chassis: string, rev: string): EmailRevisao | null => {
+    const horasRev = rev.replace("h", "");
+    return emailsDoChassis(chassis).find(e => e.horas === horasRev) || null;
+  }, [emailsDoChassis]);
 
   const grupos = useMemo(() => {
     let filtrados = tratores;
@@ -321,9 +330,9 @@ function DashboardAgrupadoInner() {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  const emailsDoSelecionado = selecionado
+  const emailsDoSelecionado = useMemo(() => selecionado
     ? emailsDoChassis(selecionado.Chassis).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    : [];
+    : [], [selecionado, emailsDoChassis]);
 
   return (
     <div className="min-h-screen text-zinc-800 p-6 md:p-12">

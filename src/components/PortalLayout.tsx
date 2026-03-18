@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import { useChat } from '@/hooks/useChat'
@@ -248,13 +248,13 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   // Total de notificações do sino (sistema + chat não lidas)
   const totalBell = notifData.naoLidas + chatData.totalNaoLidas
 
-  const filteredNavItems = navItems.filter(item => {
+  const filteredNavItems = useMemo(() => navItems.filter(item => {
     if (item.id === 'dashboard') return true
     return temAcesso(item.id)
-  })
+  }), [temAcesso])
 
   // Items mesclados para o dropdown do sino
-  const bellItems = [
+  const bellItems = useMemo(() => [
     // Chats não lidos
     ...chatData.chats.filter(c => c.nao_lidas > 0).map(c => {
       const outro = c.membros.find(m => m.user_id !== userProfile?.id)
@@ -282,7 +282,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       link: n.link,
       tipo: n.tipo
     }))
-  ].sort((a, b) => new Date(b.tempo).getTime() - new Date(a.tempo).getTime())
+  ].sort((a, b) => new Date(b.tempo).getTime() - new Date(a.tempo).getTime()), [chatData.chats, notifData.notificacoes, userProfile?.id])
 
   if (loading) {
     return (

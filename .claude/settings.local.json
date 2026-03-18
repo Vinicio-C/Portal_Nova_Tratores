@@ -69,7 +69,8 @@
       "Bash(cat \"/c/projetos/portal/src/app/\\(portal\\)/admin/page.tsx\")",
       "Bash(cat \"/c/projetos/portal/src/app/\\(portal\\)/layout.tsx\")",
       "Bash(cd C:/projetos/portal && npx tsc --noEmit 2>&1 | head -40)",
-      "Bash(cd C:/projetos/portal && npx tsc --noEmit 2>&1 | head -20)"
+      "Bash(cd C:/projetos/portal && npx tsc --noEmit 2>&1 | head -20)",
+      "Bash(npx tsc:*)"
     ]
   }
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { VALOR_HORA, VALOR_KM, TEXT_TEMPLATE, PHASES } from "@/lib/pos/constants";
 import type { ClienteOption, ClienteDados, Produto } from "@/lib/pos/types";
 import SearchModal from "./SearchModal";
@@ -238,26 +238,41 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, onCl
       descHoraValor, descKmValor, relatorioTecnico, previsaoExecucao, previsaoFaturamento,
       gerarPPV, onClose, onSaved]);
 
+  // ── Reset form to defaults ──
+  const resetForm = useCallback(() => {
+    setClienteChave(""); setClienteInfo(null); setStatus("Orçamento");
+    setTecnico1(""); setTecnico2(""); setTipoServico("Manutenção");
+    setProjeto(""); setRevisao(""); setServSolicitado(TEXT_TEMPLATE);
+    setPpv(""); setQtdHoras(1); setQtdKm(0); setDescPorc(0); setDescValor(0); setDescHoraValor(0); setDescKmValor(0);
+    setOrdemOmie(""); setMotivoCancel(""); setRelatorioTecnico("");
+    setPrevisaoExecucao(""); setPrevisaoFaturamento("");
+    setProdutos([]); setTotalPecas(0); setShowLogs(false); setRequisicoes([]);
+    setGerarPPV(false); setShowDescontos(false); setLoadingData(false);
+    setLembretes([]); setEditingLembreteId(null);
+  }, []);
+
   // ── Effects ──
+  const abortRef = useRef<AbortController | null>(null);
+
   useEffect(() => {
     if (!visible) return;
+
+    // Abort previous fetch if re-opening quickly
+    abortRef.current?.abort();
+    const ac = new AbortController();
+    abortRef.current = ac;
+
     if (mode === "create") {
-      setClienteChave(""); setClienteInfo(null); setStatus("Orçamento");
-      setTecnico1(""); setTecnico2(""); setTipoServico("Manutenção");
-      setProjeto(""); setRevisao(""); setServSolicitado(TEXT_TEMPLATE);
-      setPpv(""); setQtdHoras(1); setQtdKm(0); setDescPorc(0); setDescValor(0); setDescHoraValor(0); setDescKmValor(0);
-      setOrdemOmie(""); setMotivoCancel(""); setRelatorioTecnico("");
-      setPrevisaoExecucao(""); setPrevisaoFaturamento("");
-      setProdutos([]); setTotalPecas(0); setShowLogs(false); setRequisicoes([]);
-      setGerarPPV(false); setShowDescontos(false); setLoadingData(false);
-      setLembretes([]); setEditingLembreteId(null);
+      resetForm();
+      return;
     }
+
     if (mode === "edit" && osId) {
       setLoadingData(true);
-      fetch(`/api/pos/ordens/${osId}`)
+      fetch(`/api/pos/ordens/${osId}`, { signal: ac.signal })
         .then((r) => r.json())
         .then((d) => {
-          if (!d) return;
+          if (!d || ac.signal.aborted) return;
           setClienteInfo({ nome: d.nomeCliente, cpf: d.cpfCliente || "", email: "", telefone: "", endereco: d.enderecoCliente || "" });
           setStatus(d.status || "Orçamento");
           setTecnico1(d.tecnicoResponsavel || ""); setTecnico2(d.tecnico2 || "");
@@ -271,7 +286,6 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, onCl
           setDescValor(dv);
           setDescHoraValor(dh);
           setDescKmValor(dk);
-          // Restaurar percentual do desconto geral
           const sub = (d.qtdHoras || 0) * VALOR_HORA + (d.qtdKm || 0) * VALOR_KM;
           setDescPorc(sub > 0 ? parseFloat(((dv / sub) * 100).toFixed(2)) : 0);
           setOrdemOmie(d.ordemOmie || ""); setMotivoCancel(d.motivoCancelamento || "");
@@ -281,21 +295,23 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, onCl
           setRequisicoes(d.infoRequisicoes || []);
           setShowDescontos(dv > 0 || dh > 0 || dk > 0);
           if (d.ppv) loadPPV(d.ppv);
-          // Busca lembretes pelo nome do cliente
           if (d.nomeCliente) {
-            fetch(`/api/pos/lembretes?nome=${encodeURIComponent(d.nomeCliente)}`)
+            fetch(`/api/pos/lembretes?nome=${encodeURIComponent(d.nomeCliente)}`, { signal: ac.signal })
               .then((r) => r.json())
-              .then((lbs) => { if (Array.isArray(lbs)) setLembretes(lbs); })
+              .then((lbs) => { if (Array.isArray(lbs) && !ac.signal.aborted) setLembretes(lbs); })
               .catch(() => {});
           }
         })
         .catch((err) => {
+          if (err instanceof DOMException && err.name === "AbortError") return;
           console.error("Erro ao carregar OS:", err);
           alert("Erro ao carregar dados da OS.");
         })
-        .finally(() => setLoadingData(false));
+        .finally(() => { if (!ac.signal.aborted) setLoadingData(false); });
     }
-  }, [visible, mode, osId, loadPPV]);
+
+    return () => ac.abort();
+  }, [visible, mode, osId, loadPPV, resetForm]);
 
   // ── Early return ──
   if (!visible) return null;

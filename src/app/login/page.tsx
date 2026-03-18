@@ -30,6 +30,8 @@ export default function LoginPage() {
     const file = e.target.files?.[0]
     if (file) {
       setAvatarFile(file)
+      // Revogar URL anterior para evitar memory leak
+      if (avatarPreview) URL.revokeObjectURL(avatarPreview)
       setAvatarPreview(URL.createObjectURL(file))
     }
   }

@@ -142,13 +142,14 @@ function RequisicoesPageInner() {
 
         const buscarEImprimir = async () => {
           let reqData = null;
-          const tentativas = [3000, 5000, 8000, 12000];
-          for (const espera of tentativas) {
-            await new Promise(r => setTimeout(r, espera === 3000 ? espera : espera - tentativas[tentativas.indexOf(espera) - 1]));
+          const delays = [3000, 2000, 3000, 4000]; // intervalos entre tentativas
+          for (const delay of delays) {
+            await new Promise(r => setTimeout(r, delay));
+            const safeId = String(nova.IdReq).replace(/%/g, '');
             const { data } = await supabase
               .from('Requisicao')
               .select('*')
-              .ilike('obs', `%[APPSHEET_ID:${nova.IdReq}]%`)
+              .ilike('obs', `%[APPSHEET_ID:${safeId}]%`)
               .maybeSingle();
             if (data?.id) { reqData = data; break; }
           }

@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { UseChatReturn, Chat, Mensagem } from '@/hooks/useChat'
 import {
   X, Search, Plus, Send, Paperclip, Mic, Square,
@@ -230,17 +230,19 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
 
   // ==================== FILTERED DATA ====================
 
-  const filteredChats = chat.chats.filter(c => {
+  const filteredChats = useMemo(() => chat.chats.filter(c => {
     if (!search) return true
     const name = getChatName(c).toLowerCase()
     return name.includes(search.toLowerCase())
-  })
+  }), [chat.chats, search, userId])
 
-  const filteredUsers = chat.todosUsuarios.filter(u => {
+  const filteredUsers = useMemo(() => chat.todosUsuarios.filter(u => {
     if (u.id === userId) return false
     if (!userSearch) return true
     return u.nome.toLowerCase().includes(userSearch.toLowerCase())
-  })
+  }), [chat.todosUsuarios, userId, userSearch])
+
+  const messageGroups = useMemo(() => groupByDay(chat.mensagens), [chat.mensagens])
 
   // ==================== RENDER ====================
 
@@ -517,7 +519,7 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
                     <p style={{ color: '#a3a3a3', fontSize: '13px' }}>Envie a primeira mensagem!</p>
                   </div>
                 ) : (
-                  groupByDay(chat.mensagens).map((group, gi) => (
+                  messageGroups.map((group, gi) => (
                     <div key={gi}>
                       {/* Day separator */}
                       <div style={{

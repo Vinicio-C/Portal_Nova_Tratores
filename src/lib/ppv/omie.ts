@@ -46,16 +46,17 @@ async function omieCall<T>(
     body: JSON.stringify(payload),
   });
 
-  const data = await response.json();
-
-  if (data?.faultstring) {
-    throw new Error(`Omie [${data.faultcode}]: ${data.faultstring}`);
-  }
-
+  // Rate limit check ANTES de parsear JSON (429 pode retornar body vazio)
   if (response.status === 429) {
     console.warn("[Omie] Rate limit — aguardando 60s...");
     await new Promise((r) => setTimeout(r, 60000));
     return omieCall(endpoint, call, param, appKey, appSecret);
+  }
+
+  const data = await response.json();
+
+  if (data?.faultstring) {
+    throw new Error(`Omie [${data.faultcode}]: ${data.faultstring}`);
   }
 
   return data as T;

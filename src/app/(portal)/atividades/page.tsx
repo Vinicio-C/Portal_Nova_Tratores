@@ -73,14 +73,13 @@ function AtividadesPageInner() {
 
   useEffect(() => {
     const fetchUsuarios = async () => {
+      // Busca da tabela de usuários diretamente em vez de scan da audit_log inteira
       const { data } = await supabase
-        .from('audit_log')
-        .select('user_id, user_nome')
+        .from('financeiro_usu')
+        .select('id, nome')
+        .order('nome')
       if (data) {
-        const unique = Array.from(
-          new Map(data.map(d => [d.user_id, { id: d.user_id, nome: d.user_nome }])).values()
-        )
-        setUsuarios(unique.sort((a, b) => a.nome.localeCompare(b.nome)))
+        setUsuarios(data.map(d => ({ id: d.id, nome: d.nome })))
       }
     }
     fetchUsuarios()
@@ -96,9 +95,13 @@ function AtividadesPageInner() {
 
     if (filtroSistema) query = query.eq('sistema', filtroSistema)
     if (filtroUsuario) query = query.eq('user_id', filtroUsuario)
-    if (filtroEntidade) query = query.ilike('entidade_label', `%${filtroEntidade}%`)
+    if (filtroEntidade) {
+      const safeEntidade = filtroEntidade.replace(/%/g, '\\%')
+      query = query.ilike('entidade_label', `%${safeEntidade}%`)
+    }
     if (filtroBusca) {
-      query = query.or(`entidade_label.ilike.%${filtroBusca}%,acao.ilike.%${filtroBusca}%,entidade_id.ilike.%${filtroBusca}%`)
+      const safeBusca = filtroBusca.replace(/%/g, '\\%').replace(/,/g, '')
+      query = query.or(`entidade_label.ilike.%${safeBusca}%,acao.ilike.%${safeBusca}%,entidade_id.ilike.%${safeBusca}%`)
     }
 
     const { data, count } = await query

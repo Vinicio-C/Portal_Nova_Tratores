@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 
 export interface Notificacao {
@@ -51,7 +51,7 @@ export function useNotificacoes(userId: string | undefined) {
     return () => { supabase.removeChannel(channel) }
   }, [userId, carregar])
 
-  const naoLidas = notificacoes.filter(n => !n.lida).length
+  const naoLidas = useMemo(() => notificacoes.filter(n => !n.lida).length, [notificacoes])
 
   const marcarComoLida = useCallback(async (id: string) => {
     await supabase.from('portal_notificacoes').update({ lida: true }).eq('id', id)

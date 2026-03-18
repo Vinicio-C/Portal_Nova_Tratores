@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import { supabase } from '@/lib/supabase'
@@ -110,8 +110,9 @@ export default function DashboardPage() {
   const [recentLogs, setRecentLogs] = useState<LogEntry[]>([])
   const [currentTime, setCurrentTime] = useState(new Date())
 
+  // Relógio a cada 30s em vez de 1s — reduz 30x re-renders
   useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000)
+    const timer = setInterval(() => setCurrentTime(new Date()), 30000)
     return () => clearInterval(timer)
   }, [])
 
@@ -145,16 +146,17 @@ export default function DashboardPage() {
     router.push(system.href)
   }
 
-  const allowedSystems = systems.filter(s => {
+  const allowedSystems = useMemo(() => systems.filter(s => {
     const modulo = systemToModulo[s.id]
     return modulo ? temAcesso(modulo) : true
-  })
+  }), [temAcesso])
 
-  const filteredSystems = allowedSystems.filter(s =>
-    s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.tag.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const searchLower = searchTerm.toLowerCase()
+  const filteredSystems = useMemo(() => allowedSystems.filter(s =>
+    s.name.toLowerCase().includes(searchLower) ||
+    s.description.toLowerCase().includes(searchLower) ||
+    s.tag.toLowerCase().includes(searchLower)
+  ), [allowedSystems, searchLower])
 
   const greeting = () => {
     const h = currentTime.getHours()

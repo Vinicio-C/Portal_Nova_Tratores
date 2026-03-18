@@ -71,23 +71,31 @@ export default function AdminPage() {
     setSaving(userId)
     const existing = permissoes[userId]
 
-    if (existing?.id) {
-      await supabase.from('portal_permissoes').update({ ...updates, updated_at: new Date().toISOString() }).eq('user_id', userId)
-    } else {
-      await supabase.from('portal_permissoes').insert([{
-        user_id: userId,
-        is_admin: false,
-        categoria: '',
-        modulos_permitidos: [],
-        ...updates,
-      }])
-    }
+    // Update otimista — atualiza UI imediatamente
+    setPermissoes(prev => {
+      const base: Permissao = prev[userId] ?? { user_id: userId, is_admin: false, categoria: '', modulos_permitidos: [] }
+      return { ...prev, [userId]: { ...base, ...updates } }
+    })
 
-    // Recarrega permissões
-    const { data: perms } = await supabase.from('portal_permissoes').select('*')
-    const map: Record<string, Permissao> = {}
-    ;(perms || []).forEach((p: Permissao) => { map[p.user_id] = p })
-    setPermissoes(map)
+    try {
+      if (existing?.id) {
+        await supabase.from('portal_permissoes').update({ ...updates, updated_at: new Date().toISOString() }).eq('user_id', userId)
+      } else {
+        await supabase.from('portal_permissoes').insert([{
+          user_id: userId,
+          is_admin: false,
+          categoria: '',
+          modulos_permitidos: [],
+          ...updates,
+        }])
+      }
+    } catch {
+      // Reverte em caso de erro
+      const { data: perms } = await supabase.from('portal_permissoes').select('*')
+      const map: Record<string, Permissao> = {}
+      ;(perms || []).forEach((p: Permissao) => { map[p.user_id] = p })
+      setPermissoes(map)
+    }
     setSaving(null)
   }
 

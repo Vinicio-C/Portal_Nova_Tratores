@@ -17,23 +17,26 @@ export function useAuth() {
   const router = useRouter()
 
   useEffect(() => {
+    let cancelled = false
     const init = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession()
+        if (cancelled) return
         if (!session) { router.push('/login'); return }
         const { data: prof } = await supabase
           .from('financeiro_usu')
           .select('*')
           .eq('id', session.user.id)
           .single()
-        setUserProfile(prof)
+        if (!cancelled) setUserProfile(prof)
       } catch {
-        router.push('/login')
+        if (!cancelled) router.push('/login')
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
     init()
+    return () => { cancelled = true }
   }, [router])
 
   const handleLogout = async () => {

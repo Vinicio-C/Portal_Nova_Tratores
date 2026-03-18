@@ -15,12 +15,22 @@ export default function ClientDrawer({ visible, onClose, onSaved }: ClientDrawer
   const salvar = async () => {
     if (!form.nome) { alert("Nome obrigatório"); return; }
     setSaving(true);
-    await fetch("/api/pos/clientes/manual", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
-    setSaving(false);
-    alert("Cliente cadastrado!");
-    setForm({ nome: "", cpf: "", email: "", telefone: "", endereco: "", cidade: "" });
-    onSaved();
-    onClose();
+    try {
+      const res = await fetch("/api/pos/clientes/manual", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.erro || "Erro ao cadastrar cliente.");
+        return;
+      }
+      alert("Cliente cadastrado!");
+      setForm({ nome: "", cpf: "", email: "", telefone: "", endereco: "", cidade: "" });
+      onSaved();
+      onClose();
+    } catch {
+      alert("Erro de conexão ao cadastrar cliente.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (!visible) return null;

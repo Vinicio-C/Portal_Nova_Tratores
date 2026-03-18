@@ -12,11 +12,12 @@ export default function LogPanel({ osId, visible }: LogPanelProps) {
   const [logs, setLogs] = useState<LogEntry[]>([]);
 
   useEffect(() => {
-    if (!osId) return;
+    if (!osId || !visible) return;
     fetch(`/api/pos/logs?osId=${osId}`)
       .then((r) => r.json())
-      .then(setLogs);
-  }, [osId]);
+      .then(setLogs)
+      .catch(() => {});
+  }, [osId, visible]);
 
   if (!visible) return null;
 

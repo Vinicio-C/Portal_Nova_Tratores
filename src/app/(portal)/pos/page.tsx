@@ -26,42 +26,53 @@ function PosPageInner() {
   const [clientDrawerVisible, setClientDrawerVisible] = useState(false);
   const [lembretesVisible, setLembretesVisible] = useState(false);
 
-  const fetchOrders = useCallback(async () => {
+  const fetchOrders = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     try {
-      const res = await fetch("/api/pos/ordens");
+      const res = await fetch("/api/pos/ordens", { signal });
+      if (!res.ok) throw new Error("Erro HTTP");
       const data = await res.json();
       setOrders(data);
     } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
       console.error("Erro ao carregar ordens:", err);
     }
     setLoading(false);
   }, []);
 
-  const fetchClientes = useCallback(async () => {
+  const fetchClientes = useCallback(async (signal?: AbortSignal) => {
     try {
-      const res = await fetch("/api/pos/clientes");
+      const res = await fetch("/api/pos/clientes", { signal });
+      if (!res.ok) return;
       const data = await res.json();
       setClientes(data);
     } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
       console.error("Erro ao carregar clientes:", err);
     }
   }, []);
 
-  const fetchTecnicos = useCallback(async () => {
+  const fetchTecnicos = useCallback(async (signal?: AbortSignal) => {
     try {
-      const res = await fetch("/api/pos/tecnicos");
+      const res = await fetch("/api/pos/tecnicos", { signal });
+      if (!res.ok) return;
       const data = await res.json();
       setTecnicos(data);
     } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
       console.error("Erro ao carregar técnicos:", err);
     }
   }, []);
 
+  // Fetch inicial em paralelo
   useEffect(() => {
-    fetchOrders();
-    fetchClientes();
-    fetchTecnicos();
+    const ac = new AbortController();
+    Promise.all([
+      fetchOrders(ac.signal),
+      fetchClientes(ac.signal),
+      fetchTecnicos(ac.signal),
+    ]);
+    return () => ac.abort();
   }, [fetchOrders, fetchClientes, fetchTecnicos]);
 
   // Auto-sync every 60 seconds
