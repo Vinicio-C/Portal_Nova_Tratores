@@ -80,9 +80,9 @@ export default function FormFornecedor({ onSave }: { onSave: any }) {
         carregarFornecedores();
       }
     } else {
-      onSave(formData);
+      await onSave(formData);
       setFormData({ nome: '', numero: '', 'cpf/cnpj': '', descricao: '' });
-      setTimeout(carregarFornecedores, 500);
+      await carregarFornecedores();
     }
   };
 

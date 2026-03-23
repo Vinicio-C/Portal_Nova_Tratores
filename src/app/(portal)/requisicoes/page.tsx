@@ -219,24 +219,28 @@ function RequisicoesPageInner() {
 
   const salvarUsuario = async (dados: any) => {
     if (usuarioEditando) {
-      await supabase.from('req_usuarios').update(dados).eq('id', usuarioEditando.id);
+      const { error } = await supabase.from('req_usuarios').update(dados).eq('id', usuarioEditando.id);
+      if (error) { console.error('Erro ao editar usuário:', error); alert('Erro ao salvar: ' + error.message); return; }
       auditLog({ sistema: 'requisicoes', acao: 'editar', entidade: 'usuario', entidade_id: usuarioEditando.id, entidade_label: dados.nome });
     } else {
-      await supabase.from('req_usuarios').insert([dados]);
+      const { error } = await supabase.from('req_usuarios').insert([dados]);
+      if (error) { console.error('Erro ao criar usuário:', error); alert('Erro ao cadastrar: ' + error.message); return; }
       auditLog({ sistema: 'requisicoes', acao: 'criar', entidade: 'usuario', entidade_label: dados.nome });
     }
-    setUsuarioEditando(null); setAbaAtiva('usuarios'); carregarDados(true);
+    setUsuarioEditando(null); setAbaAtiva('usuarios'); await carregarDados(true);
   };
 
   const salvarVeiculo = async (dados: any) => {
     if (veiculoEditando) {
-      await supabase.from('SupaPlacas').update(dados).eq('IdPlaca', veiculoEditando.IdPlaca);
+      const { error } = await supabase.from('SupaPlacas').update(dados).eq('IdPlaca', veiculoEditando.IdPlaca);
+      if (error) { console.error('Erro ao editar veículo:', error); alert('Erro ao salvar: ' + error.message); return; }
       auditLog({ sistema: 'requisicoes', acao: 'editar', entidade: 'veiculo', entidade_id: veiculoEditando.IdPlaca, entidade_label: dados.NumPlaca });
     } else {
-      await supabase.from('SupaPlacas').insert([dados]);
+      const { error } = await supabase.from('SupaPlacas').insert([dados]);
+      if (error) { console.error('Erro ao criar veículo:', error); alert('Erro ao cadastrar: ' + error.message); return; }
       auditLog({ sistema: 'requisicoes', acao: 'criar', entidade: 'veiculo', entidade_label: dados.NumPlaca });
     }
-    setVeiculoEditando(null); setAbaAtiva('veiculos'); carregarDados(true);
+    setVeiculoEditando(null); setAbaAtiva('veiculos'); await carregarDados(true);
   };
 
   const tabs = [
@@ -439,9 +443,9 @@ function RequisicoesPageInner() {
 
           {abaAtiva === 'fornecedores' && (
             <FormFornecedor onSave={async (n: Record<string, unknown>) => {
-              await supabase.from('Fornecedores').insert([n]);
+              const { error } = await supabase.from('Fornecedores').insert([n]);
+              if (error) { console.error('Erro ao criar fornecedor:', error); alert('Erro ao cadastrar: ' + error.message); return; }
               auditLog({ sistema: 'requisicoes', acao: 'criar', entidade: 'fornecedor', entidade_label: String(n.nome || '') });
-              setAbaAtiva('kanban');
             }} />
           )}
 
