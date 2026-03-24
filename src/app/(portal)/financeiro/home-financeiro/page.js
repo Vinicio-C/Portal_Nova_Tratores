@@ -169,6 +169,20 @@ function HomeFinanceiroContent() {
     if (t.gTipo === 'rh') return `RH #${t.id} - ${t.funcionario || ''}`;
     return `NF #${t.id} - ${t.nom_cliente || t.tarefa || ''}`;
  };
+
+ const notificarMovimento = (tabela, t, novoStatus, descExtra) => {
+    const label = getCardLabel(t);
+    const statusLabels = { gerar_boleto: 'Gerar Boleto', enviar_cliente: 'Enviar ao Cliente', aguardando_vencimento: 'Aguardando Vencimento', pago: 'Pago', vencido: 'Vencido', concluido: 'Concluído', financeiro: 'Financeiro' };
+    const titulo = `Card movimentado → ${statusLabels[novoStatus] || novoStatus}`;
+    const descricao = descExtra || label;
+    const tipo = t.gTipo || 'boleto';
+    marcarMinhaAcao(tabela, t.id, {
+      titulo, descricao,
+      link: `/financeiro/home-financeiro?id=${t.id}&tipo=${tipo}`,
+      userId: userProfile?.id,
+      alvo: 'posvendas',
+    });
+ };
  const getCardTable = (t) => t.gTipo === 'pagar' ? 'finan_pagar' : t.gTipo === 'receber' ? 'finan_receber' : t.gTipo === 'rh' ? 'finan_rh' : 'Chamado_NF';
 
  const handleUpdateField = async (t, field, value) => {
@@ -188,11 +202,26 @@ function HomeFinanceiroContent() {
       if (uploadError) throw uploadError;
       const { data: linkData } = supabase.storage.from('anexos').getPublicUrl(path);
 
-      await supabase.from(table).update({ [field]: linkData.publicUrl }).eq('id', t.id);
+      let updateData = { [field]: linkData.publicUrl };
+
+      // Auto-move: ao anexar boleto em card "gerar_boleto" → mover para "enviar_cliente"
+      if (field.startsWith('anexo_boleto') && t.status === 'gerar_boleto' && table === 'Chamado_NF') {
+        updateData.status = 'enviar_cliente';
+        updateData.tarefa = 'Enviar para o Cliente';
+        updateData.setor = 'Pós-Vendas';
+      }
+
+      await supabase.from(table).update(updateData).eq('id', t.id);
       auditLog({ sistema: 'financeiro', acao: 'upload', entidade: table, entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { campo: field, arquivo: file.name } });
-      alert("Arquivo atualizado!");
+
+      if (updateData.status === 'enviar_cliente') {
+        notificarMovimento('Chamado_NF', t, 'enviar_cliente', `${getCardLabel(t)} — Boleto anexado, enviar ao cliente`);
+        alert("Boleto anexado! Card movido para Enviar ao Cliente.");
+      } else {
+        alert("Arquivo atualizado!");
+      }
       carregarDados();
-      if(tarefaSelecionada) setTarefaSelecionada(prev => ({ ...prev, [field]: linkData.publicUrl }));
+      if(tarefaSelecionada) setTarefaSelecionada(prev => ({ ...prev, ...updateData }));
     } catch (err) { alert("Erro: " + err.message); }
  };
 
@@ -203,7 +232,7 @@ function HomeFinanceiroContent() {
     await supabase.storage.from('anexos').upload(path, fileBoleto);
     const { data } = supabase.storage.from('anexos').getPublicUrl(path);
 
-    marcarMinhaAcao('Chamado_NF', t.id);
+    notificarMovimento('Chamado_NF', t, 'enviar_cliente', `${getCardLabel(t)} — Boleto gerado`);
     await supabase.from('Chamado_NF').update({
         status: 'enviar_cliente',
         tarefa: 'Enviar Boleto para o Cliente',
@@ -217,7 +246,7 @@ function HomeFinanceiroContent() {
  };
 
  const handleMoverParaPago = async (t) => {
-    marcarMinhaAcao('Chamado_NF', t.id);
+    notificarMovimento('Chamado_NF', t, 'pago', `${getCardLabel(t)} — Pagamento confirmado`);
     await supabase.from('Chamado_NF').update({ status: 'pago', tarefa: 'Pagamento Confirmado' }).eq('id', t.id);
     auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { de: t.status, para: 'pago', acao_desc: 'Pagamento confirmado' } });
     alert("Pagamento confirmado e processo finalizado!"); setTarefaSelecionada(null); carregarDados();
@@ -225,7 +254,7 @@ function HomeFinanceiroContent() {
 
  const handleConcluirGeral = async (t) => {
     const table = getCardTable(t);
-    marcarMinhaAcao(table, t.id);
+    notificarMovimento(table, t, 'concluido', `${getCardLabel(t)} — Processo concluído`);
     await supabase.from(table).update({ status: 'concluido' }).eq('id', t.id);
     auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: table, entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { de: t.status, para: 'concluido', acao_desc: 'Processo concluído' } });
     alert("Processo concluído!"); setTarefaSelecionada(null); carregarDados();
@@ -234,7 +263,7 @@ function HomeFinanceiroContent() {
  const handlePedirRecobranca = async (t) => {
     if (!window.confirm("Deseja solicitar recobrança ao Pós-Vendas?")) return;
     const newVal = (t.recombrancas_qtd || 0) + 1;
-    marcarMinhaAcao('Chamado_NF', t.id);
+    notificarMovimento('Chamado_NF', t, 'vencido', `${getCardLabel(t)} — Recobrança #${newVal}`);
     await supabase.from('Chamado_NF').update({
         status: 'vencido',
         tarefa: 'Cobrar Cliente (Recobrança)',
@@ -246,7 +275,7 @@ function HomeFinanceiroContent() {
  };
 
  const handleSomenteVencido = async (t) => {
-    marcarMinhaAcao('Chamado_NF', t.id);
+    notificarMovimento('Chamado_NF', t, 'vencido');
     await supabase.from('Chamado_NF').update({ status: 'vencido' }).eq('id', t.id);
     auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { de: t.status, para: 'vencido' } });
     alert("Card movido para Vencido!"); setTarefaSelecionada(null); carregarDados();
@@ -332,7 +361,7 @@ function HomeFinanceiroContent() {
       <div style={colWrapperStyle}>
        <div style={colTitleStyle}>Faturamento</div>
        <div style={{ display: 'flex', flexDirection: 'column', gap: '0px', borderTop: '0.5px solid #dcdde1' }}>
-        {listaBoletos.filter(c => c.status === 'gerar_boleto' || c.status === 'validar_pix' || (c.status === 'aguardando_vencimento' && (c.isVencidoDisplay || c.isTarefaPagamentoRealizado || c.parcelaVencida))).map((t, idx) => (
+        {listaBoletos.filter(c => c.status === 'gerar_boleto' || c.status === 'validar_pix' || (c.status === 'aguardando_vencimento' && (c.isTarefaPagamentoRealizado || c.parcelaVencida))).map((t, idx) => (
          <div key={`bol-${t.id}-${idx}`} onClick={() => setTarefaSelecionada(t)} className="task-card-grid">
           <div style={{ background: '#f1f5f9', padding: '24px', borderBottom: '0.5px solid #dcdde1' }}>
             <h4 style={{ margin: 0, fontSize: '18px', fontWeight:'500', color: '#1e293b' }}>{t.nom_cliente?.toUpperCase()}</h4>
@@ -585,8 +614,8 @@ function HomeFinanceiroContent() {
                 )}
                 {tarefaSelecionada.obs && (
                   <div style={{gridColumn:'1 / -1', ...fieldBoxInner}}>
-                    <label style={labelMStyle}>OBSERVACOES</label>
-                    <textarea style={{...inputStyleLight, height:'60px', resize: 'none'}} defaultValue={tarefaSelecionada.obs} onBlur={e => handleUpdateField(tarefaSelecionada, 'obs', e.target.value)} />
+                    <label style={labelMStyle}>OBSERVAÇÕES</label>
+                    <textarea style={{...inputStyleLight, minHeight:'100px', resize:'vertical', lineHeight:'1.6', fontSize:'14px', padding:'14px'}} defaultValue={tarefaSelecionada.obs} onBlur={e => handleUpdateField(tarefaSelecionada, 'obs', e.target.value)} />
                   </div>
                 )}
             </div>
@@ -629,7 +658,8 @@ function HomeFinanceiroContent() {
                   </div>
                 </div>
 
-                {/* COLUNA: BOLETOS - AREA DO FINANCEIRO */}
+                {/* COLUNA: BOLETOS - AREA DO FINANCEIRO — só mostra se NÃO for Pix/Cartão à vista */}
+                {!isCashOrCardType && (
                 <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'15px', padding:'30px' }}>
                   <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'20px' }}>
                     <div style={{ width:'36px', height:'36px', borderRadius:'50%', background:'#dbeafe', display:'flex', alignItems:'center', justifyContent:'center' }}><Barcode size={18} color="#3b82f6"/></div>
@@ -653,6 +683,7 @@ function HomeFinanceiroContent() {
                     )}
                   </div>
                 </div>
+                )}
               </div>
             )}
 

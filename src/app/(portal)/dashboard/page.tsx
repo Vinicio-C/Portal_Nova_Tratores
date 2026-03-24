@@ -88,7 +88,7 @@ const systems: SystemCard[] = [
   {
     id: 'tarefas',
     name: 'Tarefas',
-    description: 'Gestão de tarefas entre usuários com integração Vikunja',
+    description: 'Gestão de tarefas entre usuários',
     icon: <ClipboardCheck size={28} />,
     color: '#dc2626',
     gradient: 'linear-gradient(135deg, #dc2626, #b91c1c)',
@@ -167,25 +167,13 @@ export default function DashboardPage() {
     loadLogs()
   }, [userProfile])
 
-  // Carregar tarefas do Vikunja
+  // Carregar tarefas
   useEffect(() => {
     if (!userProfile) return
     const loadTarefas = async () => {
       try {
-        // Buscar vikunja users para achar o ID
-        const usersRes = await fetch('/api/tarefas/users')
-        const vUsers = await usersRes.json()
-        if (!Array.isArray(vUsers)) { setTarefasLoading(false); return }
-        const nome = userProfile.nome?.toLowerCase() || ''
-        const match = vUsers.find((u: any) =>
-          u.username.toLowerCase() === nome ||
-          u.username.toLowerCase().includes(nome.split(' ')[0]?.toLowerCase()) ||
-          nome.includes(u.username.toLowerCase())
-        )
-        if (!match) { setTarefasLoading(false); return }
-        const res = await fetch(`/api/tarefas?filter=minhas&vikunjaUserId=${match.id}`)
+        const res = await fetch(`/api/tarefas?filter=minhas&userId=${userProfile.id}`)
         const data = await res.json()
-        // Mostrar só pendentes/atrasadas, máximo 5
         const pendentes = (Array.isArray(data) ? data : [])
           .filter((t: any) => t.computed_status !== 'concluida')
           .slice(0, 5)
@@ -516,10 +504,10 @@ export default function DashboardPage() {
           }}>
             {minhasTarefas.map((t: any, i: number) => {
               const isAtrasada = t.computed_status === 'atrasada'
-              const hasDue = t.due_date && !t.due_date.startsWith('0001')
+              const hasDue = !!t.prazo
               const priorityColors: Record<number, string> = { 0: '#a3a3a3', 1: '#3b82f6', 2: '#f59e0b', 3: '#f97316', 4: '#ef4444', 5: '#dc2626' }
               const priorityLabels: Record<number, string> = { 0: '', 1: 'Baixa', 2: 'Normal', 3: 'Alta', 4: 'Urgente', 5: 'Crítica' }
-              const dueDate = hasDue ? new Date(t.due_date) : null
+              const dueDate = hasDue ? new Date(t.prazo) : null
               const now = new Date()
               const diffDays = dueDate ? Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null
 
@@ -557,21 +545,21 @@ export default function DashboardPage() {
                       fontSize: '14px', fontWeight: '500', color: '#1a1a1a',
                       margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
                     }}>
-                      {t.title}
+                      {t.titulo}
                     </p>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '4px' }}>
-                      {t.created_by && (
+                      {t.criador && (
                         <span style={{ fontSize: '12px', color: '#a3a3a3' }}>
-                          de {t.created_by.username}
+                          de {t.criador.nome}
                         </span>
                       )}
-                      {t.priority > 0 && (
+                      {t.prioridade > 0 && (
                         <span style={{
                           fontSize: '10px', fontWeight: '600',
-                          color: priorityColors[t.priority] || '#a3a3a3',
+                          color: priorityColors[t.prioridade] || '#a3a3a3',
                           textTransform: 'uppercase'
                         }}>
-                          {priorityLabels[t.priority]}
+                          {priorityLabels[t.prioridade]}
                         </span>
                       )}
                     </div>

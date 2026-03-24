@@ -6,7 +6,7 @@ import { sincronizarStatusPPV } from "@/lib/pos/sync-ppv";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: idOs } = await params;
-  const { status: newStatus } = await req.json();
+  const { status: newStatus, userName } = await req.json();
 
   // Busca status atual para log
   const { data: resAtual } = await supabase.from(TBL_OS).select("Status").eq("Id_Ordem", idOs).limit(1);
@@ -32,7 +32,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const horaFmt = agora.toLocaleTimeString("pt-BR");
   await supabase.from(TBL_LOGS_PPO).insert({
     Id_ppo: idOs, Data_Acao: dataFmt, Hora_Acao: horaFmt,
-    UsuEmail: "admin.sistema@novatratores.com",
+    UsuEmail: userName || "Sistema",
     acao: `Mudança rápida para ${newStatus}`,
     Status_Anterior: statusAnterior, Status_Atual: newStatus,
     Dias_Na_Fase: 0, Total_Dias_Aberto: 0,

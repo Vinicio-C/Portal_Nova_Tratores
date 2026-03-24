@@ -1,30 +1,34 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useAuth } from '@/hooks/useAuth'
+import { usePermissoes } from '@/hooks/usePermissoes'
+import SemPermissao from '@/components/SemPermissao'
 import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus'
 import {
   ClipboardCheck, Plus, Calendar, AlertTriangle, CheckCircle2,
   Clock, X, User, Flag, ChevronDown, Search, Loader2
 } from 'lucide-react'
 
-interface VikunjaUser {
-  id: number
-  username: string
-  name: string
+interface PortalUser {
+  id: string
+  nome: string
+  avatar_url: string
 }
 
 interface Tarefa {
   id: number
-  title: string
-  description: string
-  due_date: string
-  priority: number
-  done: boolean
-  done_at: string
-  assignees: VikunjaUser[] | null
-  created_by: VikunjaUser
-  created: string
-  updated: string
+  titulo: string
+  descricao: string
+  prazo: string | null
+  prioridade: number
+  concluida: boolean
+  concluida_em: string | null
+  criado_por: string
+  atribuido_a: string | null
+  created_at: string
+  updated_at: string
+  criador: PortalUser | null
+  atribuido: PortalUser | null
   computed_status: 'pendente' | 'atrasada' | 'concluida'
 }
 
@@ -43,13 +47,13 @@ const STATUS_MAP = {
   concluida: { label: 'Concluída', color: '#10b981', bg: '#f0fdf4', icon: CheckCircle2 },
 }
 
-function formatDate(d: string) {
-  if (!d || d.startsWith('0001')) return ''
+function formatDate(d: string | null) {
+  if (!d) return ''
   return new Date(d).toLocaleDateString('pt-BR')
 }
 
-function formatDateRelative(d: string) {
-  if (!d || d.startsWith('0001')) return 'Sem prazo'
+function formatDateRelative(d: string | null) {
+  if (!d) return 'Sem prazo'
   const date = new Date(d)
   const now = new Date()
   const diff = Math.ceil((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
@@ -59,85 +63,90 @@ function formatDateRelative(d: string) {
   return `${diff} dias`
 }
 
-export default function TarefasPage() {
-  const { userProfile, loading: authLoading } = useAuth()
-  const [tarefas, setTarefas] = useState<Tarefa[]>([])
-  const [vikunjaUsers, setVikunjaUsers] = useState<VikunjaUser[]>([])
+function TarefasPageInner() {
+  const { userProfile } = useAuth()
+  const [allTarefas, setAllTarefas] = useState<Tarefa[]>([])
+  const [users, setUsers] = useState<PortalUser[]>([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<'minhas' | 'enviadas'>('minhas')
   const [showCreate, setShowCreate] = useState(false)
   const [search, setSearch] = useState('')
-  const [meuVikunjaId, setMeuVikunjaId] = useState<number | null>(null)
   const [showConcluidas, setShowConcluidas] = useState(false)
 
-  // Carregar usuários do Vikunja e detectar o meu ID
-  useEffect(() => {
-    if (!userProfile) return
-    fetch('/api/tarefas/users')
-      .then(r => r.json())
-      .then((users: VikunjaUser[]) => {
-        setVikunjaUsers(users)
-        // Tentar mapear por nome similar
-        const nome = userProfile.nome?.toLowerCase() || ''
-        const match = users.find(u =>
-          u.username.toLowerCase() === nome ||
-          u.name?.toLowerCase() === nome ||
-          u.username.toLowerCase().includes(nome.split(' ')[0]?.toLowerCase()) ||
-          nome.includes(u.username.toLowerCase())
-        )
-        if (match) setMeuVikunjaId(match.id)
-      })
-      .catch(console.error)
-  }, [userProfile])
-
-  const carregarTarefas = useCallback(async () => {
-    if (meuVikunjaId === null) return
+  const carregarTudo = useCallback(async () => {
+    if (!userProfile?.id) return
     setLoading(true)
     try {
-      const res = await fetch(`/api/tarefas?filter=${tab}&vikunjaUserId=${meuVikunjaId}`)
-      const data = await res.json()
-      setTarefas(Array.isArray(data) ? data : [])
+      const [tarefasRes, usersRes] = await Promise.all([
+        fetch(`/api/tarefas?filter=todas&userId=${userProfile.id}`),
+        fetch('/api/tarefas/users'),
+      ])
+      const [tarefas, usersData] = await Promise.all([
+        tarefasRes.json(),
+        usersRes.json(),
+      ])
+      setAllTarefas(Array.isArray(tarefas) ? tarefas : [])
+      if (Array.isArray(usersData)) setUsers(usersData)
     } catch (err) {
       console.error('Erro ao carregar tarefas:', err)
     } finally {
       setLoading(false)
     }
-  }, [tab, meuVikunjaId])
+  }, [userProfile?.id])
 
-  useEffect(() => { carregarTarefas() }, [carregarTarefas])
+  useEffect(() => { carregarTudo() }, [carregarTudo])
+  useRefreshOnFocus(carregarTudo)
 
-  // Refresh ao voltar para a aba
-  useRefreshOnFocus(carregarTarefas);
+  // Filtragem 100% client-side
+  const tarefasFiltradas = useMemo(() => {
+    let filtered = allTarefas
 
+    if (userProfile?.id) {
+      if (tab === 'minhas') {
+        filtered = filtered.filter(t => t.atribuido_a === userProfile.id)
+      } else if (tab === 'enviadas') {
+        filtered = filtered.filter(t => t.criado_por === userProfile.id)
+      }
+    }
+
+    if (!showConcluidas) {
+      filtered = filtered.filter(t => t.computed_status !== 'concluida')
+    }
+
+    if (search) {
+      const s = search.toLowerCase()
+      filtered = filtered.filter(t =>
+        t.titulo.toLowerCase().includes(s) ||
+        t.descricao?.toLowerCase().includes(s) ||
+        t.atribuido?.nome?.toLowerCase().includes(s) ||
+        t.criador?.nome?.toLowerCase().includes(s)
+      )
+    }
+
+    return filtered
+  }, [allTarefas, userProfile?.id, tab, showConcluidas, search])
+
+  // Marcar concluída com update otimista
   const marcarConcluida = async (id: number, done: boolean) => {
+    setAllTarefas(prev => prev.map(t => {
+      if (t.id !== id) return t
+      const now = new Date()
+      const computed_status = done ? 'concluida' as const
+        : (t.prazo && new Date(t.prazo) < now) ? 'atrasada' as const : 'pendente' as const
+      return { ...t, concluida: done, computed_status, concluida_em: done ? now.toISOString() : null }
+    }))
+
     try {
       await fetch(`/api/tarefas/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ done }),
       })
-      carregarTarefas()
     } catch (err) {
       console.error(err)
+      carregarTudo()
     }
   }
-
-  const tarefasFiltradas = tarefas.filter(t => {
-    if (!showConcluidas && t.computed_status === 'concluida') return false
-    if (search) {
-      const s = search.toLowerCase()
-      return t.title.toLowerCase().includes(s) ||
-        t.description?.toLowerCase().includes(s) ||
-        t.assignees?.some(a => a.username.toLowerCase().includes(s))
-    }
-    return true
-  })
-
-  if (authLoading) return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fafafa' }}>
-      <Loader2 size={24} color="#dc2626" style={{ animation: 'spin 1s linear infinite' }} />
-    </div>
-  )
 
   return (
     <div style={{ fontFamily: 'Montserrat, sans-serif', color: '#1a1a1a' }}>
@@ -155,7 +164,6 @@ export default function TarefasPage() {
             <h1 style={{ fontSize: '18px', fontWeight: '600', margin: 0 }}>Tarefas</h1>
           </div>
 
-          {/* Tabs */}
           <div style={{ display: 'flex', background: '#f5f5f5', borderRadius: '10px', padding: '3px' }}>
             {(['minhas', 'enviadas'] as const).map(t => (
               <button key={t} onClick={() => setTab(t)} style={{
@@ -172,7 +180,6 @@ export default function TarefasPage() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          {/* Search */}
           <div style={{
             display: 'flex', alignItems: 'center', gap: '8px',
             background: '#f5f5f5', borderRadius: '10px', padding: '8px 14px'
@@ -188,7 +195,6 @@ export default function TarefasPage() {
             />
           </div>
 
-          {/* Toggle concluídas */}
           <button onClick={() => setShowConcluidas(!showConcluidas)} style={{
             padding: '8px 14px', borderRadius: '8px', border: '1px solid #e5e5e5',
             background: showConcluidas ? '#f0fdf4' : '#fff',
@@ -199,7 +205,6 @@ export default function TarefasPage() {
             Concluídas
           </button>
 
-          {/* Botão criar */}
           <button onClick={() => setShowCreate(true)} style={{
             padding: '10px 20px', borderRadius: '10px', border: 'none',
             background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
@@ -214,16 +219,6 @@ export default function TarefasPage() {
 
       {/* Content */}
       <div style={{ padding: '24px 32px', maxWidth: '1100px', margin: '0 auto' }}>
-        {meuVikunjaId === null && !loading && (
-          <div style={{
-            padding: '24px', background: '#fffbeb', border: '1px solid #fde68a',
-            borderRadius: '12px', marginBottom: '20px', fontSize: '14px', color: '#92400e'
-          }}>
-            <AlertTriangle size={16} style={{ verticalAlign: 'middle', marginRight: '8px' }} />
-            Seu usuário do portal não foi vinculado ao Vikunja. Tarefas podem não aparecer corretamente.
-          </div>
-        )}
-
         {loading ? (
           <div style={{ padding: '60px', textAlign: 'center', color: '#a3a3a3' }}>
             <Loader2 size={28} style={{ animation: 'spin 1s linear infinite', margin: '0 auto 12px' }} />
@@ -242,7 +237,7 @@ export default function TarefasPage() {
               <TarefaCard
                 key={t.id}
                 tarefa={t}
-                onToggleDone={() => marcarConcluida(t.id, !t.done)}
+                onToggleDone={() => marcarConcluida(t.id, !t.concluida)}
                 showAssignee={tab === 'enviadas'}
               />
             ))}
@@ -250,12 +245,12 @@ export default function TarefasPage() {
         )}
       </div>
 
-      {/* Modal Criar */}
       {showCreate && (
         <CriarTarefaModal
-          vikunjaUsers={vikunjaUsers}
+          users={users}
+          criadorId={userProfile?.id || ''}
           onClose={() => setShowCreate(false)}
-          onCreated={() => { setShowCreate(false); carregarTarefas() }}
+          onCreated={() => { setShowCreate(false); carregarTudo() }}
         />
       )}
 
@@ -274,9 +269,8 @@ function TarefaCard({ tarefa, onToggleDone, showAssignee }: {
   showAssignee: boolean
 }) {
   const status = STATUS_MAP[tarefa.computed_status]
-  const priority = PRIORITY_MAP[tarefa.priority] || PRIORITY_MAP[0]
+  const priority = PRIORITY_MAP[tarefa.prioridade] || PRIORITY_MAP[0]
   const StatusIcon = status.icon
-  const hasDueDate = tarefa.due_date && !tarefa.due_date.startsWith('0001')
 
   return (
     <div style={{
@@ -286,29 +280,27 @@ function TarefaCard({ tarefa, onToggleDone, showAssignee }: {
       borderRadius: '14px',
       borderLeft: `4px solid ${status.color}`,
       transition: 'all 0.15s',
-      opacity: tarefa.done ? 0.6 : 1
+      opacity: tarefa.concluida ? 0.6 : 1
     }}>
-      {/* Checkbox */}
       <button onClick={onToggleDone} style={{
         width: '28px', height: '28px', borderRadius: '8px', flexShrink: 0,
-        border: tarefa.done ? 'none' : `2px solid ${status.color}`,
-        background: tarefa.done ? status.color : 'transparent',
+        border: tarefa.concluida ? 'none' : `2px solid ${status.color}`,
+        background: tarefa.concluida ? status.color : 'transparent',
         cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
         transition: 'all 0.2s'
       }}>
-        {tarefa.done && <CheckCircle2 size={16} color="#fff" />}
+        {tarefa.concluida && <CheckCircle2 size={16} color="#fff" />}
       </button>
 
-      {/* Content */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px', flexWrap: 'wrap' }}>
           <span style={{
             fontSize: '15px', fontWeight: '500', color: '#1a1a1a',
-            textDecoration: tarefa.done ? 'line-through' : 'none'
+            textDecoration: tarefa.concluida ? 'line-through' : 'none'
           }}>
-            {tarefa.title}
+            {tarefa.titulo}
           </span>
-          {tarefa.priority > 0 && (
+          {tarefa.prioridade > 0 && (
             <span style={{
               fontSize: '10px', fontWeight: '600', color: priority.color,
               background: priority.bg, padding: '2px 8px', borderRadius: '6px',
@@ -319,18 +311,17 @@ function TarefaCard({ tarefa, onToggleDone, showAssignee }: {
           )}
         </div>
 
-        {tarefa.description && (
+        {tarefa.descricao && (
           <p style={{
             fontSize: '13px', color: '#737373', margin: '2px 0 0 0',
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             maxWidth: '500px'
           }}>
-            {tarefa.description.replace(/<[^>]+>/g, '').slice(0, 120)}
+            {tarefa.descricao.slice(0, 120)}
           </p>
         )}
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginTop: '8px', flexWrap: 'wrap' }}>
-          {/* Status */}
           <span style={{
             fontSize: '11px', fontWeight: '600', color: status.color,
             background: status.bg, padding: '3px 10px', borderRadius: '6px',
@@ -339,36 +330,33 @@ function TarefaCard({ tarefa, onToggleDone, showAssignee }: {
             <StatusIcon size={12} /> {status.label}
           </span>
 
-          {/* Due date */}
-          {hasDueDate && (
+          {tarefa.prazo && (
             <span style={{
               fontSize: '12px', color: tarefa.computed_status === 'atrasada' ? '#ef4444' : '#737373',
               display: 'inline-flex', alignItems: 'center', gap: '4px'
             }}>
               <Calendar size={12} />
-              {formatDate(tarefa.due_date)} ({formatDateRelative(tarefa.due_date)})
+              {formatDate(tarefa.prazo)} ({formatDateRelative(tarefa.prazo)})
             </span>
           )}
 
-          {/* Assignee */}
-          {showAssignee && tarefa.assignees?.length ? (
+          {showAssignee && tarefa.atribuido && (
             <span style={{
               fontSize: '12px', color: '#3b82f6',
               display: 'inline-flex', alignItems: 'center', gap: '4px'
             }}>
               <User size={12} />
-              {tarefa.assignees.map(a => a.username).join(', ')}
+              {tarefa.atribuido.nome}
             </span>
-          ) : null}
+          )}
 
-          {/* Criador */}
-          {!showAssignee && tarefa.created_by && (
+          {!showAssignee && tarefa.criador && (
             <span style={{
               fontSize: '12px', color: '#a3a3a3',
               display: 'inline-flex', alignItems: 'center', gap: '4px'
             }}>
               <User size={12} />
-              Enviada por {tarefa.created_by.username}
+              Enviada por {tarefa.criador.nome}
             </span>
           )}
         </div>
@@ -379,32 +367,34 @@ function TarefaCard({ tarefa, onToggleDone, showAssignee }: {
 
 // ==================== CRIAR TAREFA MODAL ====================
 
-function CriarTarefaModal({ vikunjaUsers, onClose, onCreated }: {
-  vikunjaUsers: VikunjaUser[]
+function CriarTarefaModal({ users, criadorId, onClose, onCreated }: {
+  users: PortalUser[]
+  criadorId: string
   onClose: () => void
   onCreated: () => void
 }) {
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
-  const [dueDate, setDueDate] = useState('')
-  const [priority, setPriority] = useState(2)
-  const [assigneeId, setAssigneeId] = useState<number | null>(null)
+  const [titulo, setTitulo] = useState('')
+  const [descricao, setDescricao] = useState('')
+  const [prazo, setPrazo] = useState('')
+  const [prioridade, setPrioridade] = useState(2)
+  const [atribuidoA, setAtribuidoA] = useState<string>('')
   const [saving, setSaving] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!title.trim()) return
+    if (!titulo.trim()) return
     setSaving(true)
     try {
       const res = await fetch('/api/tarefas', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title: title.trim(),
-          description,
-          due_date: dueDate || undefined,
-          priority,
-          assignee_vikunja_id: assigneeId,
+          titulo: titulo.trim(),
+          descricao,
+          prazo: prazo || undefined,
+          prioridade,
+          criado_por: criadorId,
+          atribuido_a: atribuidoA || undefined,
         }),
       })
       if (!res.ok) throw new Error('Erro ao criar tarefa')
@@ -440,39 +430,36 @@ function CriarTarefaModal({ vikunjaUsers, onClose, onCreated }: {
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          {/* Título */}
           <div>
             <label style={labelSt}>Título</label>
             <input
-              type="text" required value={title} onChange={e => setTitle(e.target.value)}
+              type="text" required value={titulo} onChange={e => setTitulo(e.target.value)}
               placeholder="O que precisa ser feito?"
               style={inputSt}
             />
           </div>
 
-          {/* Descrição */}
           <div>
             <label style={labelSt}>Descrição (opcional)</label>
             <textarea
-              value={description} onChange={e => setDescription(e.target.value)}
+              value={descricao} onChange={e => setDescricao(e.target.value)}
               placeholder="Detalhes da tarefa..."
               rows={3}
               style={{ ...inputSt, resize: 'none', minHeight: '80px' }}
             />
           </div>
 
-          {/* Atribuir para */}
           <div>
             <label style={labelSt}>Atribuir para</label>
             <div style={{ position: 'relative' }}>
               <User size={16} color="#a3a3a3" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
               <select
-                value={assigneeId ?? ''} onChange={e => setAssigneeId(e.target.value ? parseInt(e.target.value) : null)}
+                value={atribuidoA} onChange={e => setAtribuidoA(e.target.value)}
                 style={{ ...inputSt, paddingLeft: '40px', appearance: 'none', cursor: 'pointer' }}
               >
                 <option value="">Selecionar usuário...</option>
-                {vikunjaUsers.map(u => (
-                  <option key={u.id} value={u.id}>{u.username}{u.name ? ` (${u.name})` : ''}</option>
+                {users.map(u => (
+                  <option key={u.id} value={u.id}>{u.nome}</option>
                 ))}
               </select>
               <ChevronDown size={16} color="#a3a3a3" style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
@@ -480,25 +467,23 @@ function CriarTarefaModal({ vikunjaUsers, onClose, onCreated }: {
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-            {/* Data */}
             <div>
               <label style={labelSt}>Prazo</label>
               <div style={{ position: 'relative' }}>
                 <Calendar size={16} color="#a3a3a3" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
                 <input
-                  type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
+                  type="date" value={prazo} onChange={e => setPrazo(e.target.value)}
                   style={{ ...inputSt, paddingLeft: '40px' }}
                 />
               </div>
             </div>
 
-            {/* Prioridade */}
             <div>
               <label style={labelSt}>Prioridade</label>
               <div style={{ position: 'relative' }}>
                 <Flag size={16} color="#a3a3a3" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
                 <select
-                  value={priority} onChange={e => setPriority(parseInt(e.target.value))}
+                  value={prioridade} onChange={e => setPrioridade(parseInt(e.target.value))}
                   style={{ ...inputSt, paddingLeft: '40px', appearance: 'none', cursor: 'pointer' }}
                 >
                   <option value={0}>Sem prioridade</option>
@@ -513,7 +498,7 @@ function CriarTarefaModal({ vikunjaUsers, onClose, onCreated }: {
             </div>
           </div>
 
-          <button type="submit" disabled={saving || !title.trim()} style={{
+          <button type="submit" disabled={saving || !titulo.trim()} style={{
             padding: '14px', borderRadius: '12px', border: 'none',
             background: saving ? '#e5e5e5' : 'linear-gradient(135deg, #dc2626, #b91c1c)',
             color: saving ? '#a3a3a3' : '#fff',
@@ -540,4 +525,22 @@ const inputSt: React.CSSProperties = {
   border: '1px solid #e5e5e5', outline: 'none', background: '#fafafa',
   color: '#1a1a1a', fontSize: '14px', fontFamily: 'Montserrat, sans-serif',
   transition: '0.2s', boxSizing: 'border-box'
+}
+
+// ==================== PAGE WRAPPER ====================
+
+export default function TarefasPage() {
+  const { userProfile, loading: authLoading } = useAuth()
+  const { temAcesso, loading: loadingPerm } = usePermissoes(userProfile?.id)
+
+  if (authLoading || loadingPerm) return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fafafa' }}>
+      <Loader2 size={24} color="#dc2626" style={{ animation: 'spin 1s linear infinite' }} />
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+    </div>
+  )
+
+  if (userProfile && !temAcesso('tarefas')) return <SemPermissao />
+
+  return <TarefasPageInner />
 }

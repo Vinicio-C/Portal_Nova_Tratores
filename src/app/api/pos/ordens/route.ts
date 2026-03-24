@@ -193,7 +193,7 @@ async function calcularTotais(dados: { qtdHoras: number; qtdKm: number; ppv: str
   return { total: subtotal - desc, subtotal, vHoras, vKm, vPecas, vReq, vHorasRaw: vHoras, vKmRaw: vKm, vPecasRaw: vPecas };
 }
 
-async function registrarLog(osId: string, acao: string, statusPara: string | null, statusDe: string | null = null) {
+async function registrarLog(osId: string, acao: string, statusPara: string | null, statusDe: string | null = null, userName: string = "Sistema") {
   const agora = new Date();
   const dataFmt = new Intl.DateTimeFormat("pt-BR").format(agora);
   const horaFmt = agora.toLocaleTimeString("pt-BR");
@@ -215,7 +215,7 @@ async function registrarLog(osId: string, acao: string, statusPara: string | nul
 
   await supabase.from(TBL_LOGS_PPO).insert({
     Id_ppo: osId, Data_Acao: dataFmt, Hora_Acao: horaFmt,
-    UsuEmail: "admin.sistema@novatratores.com", acao,
+    UsuEmail: userName, acao,
     Status_Anterior: statusDe, Status_Atual: statusPara,
     Dias_Na_Fase: Math.max(0, diasNaFase), Total_Dias_Aberto: Math.max(0, totalDiasAberto),
   });
@@ -267,7 +267,7 @@ export async function POST(req: NextRequest) {
       valor_total: 0,
       observacao: `Gerado automaticamente pela OS ${newId} (${dados.revisao || "Revisão"})`,
       Motivo_Saida_Pedido: "Saida Tecnico (Com OS)",
-      email_usuario: "sistema@ppv.local",
+      email_usuario: dados.userName || "Sistema",
       Id_Os: newId,
       data: dataFormatada,
     });
@@ -294,9 +294,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, erro: `Erro ao criar OS: ${error.message}` }, { status: 500 });
   }
 
-  await registrarLog(newId, "Ordem Criada", "Orçamento", null);
+  const userNameLog = dados.userName || "Sistema";
+  await registrarLog(newId, "Ordem Criada", "Orçamento", null, userNameLog);
   if (ppvGerado) {
-    await registrarLog(newId, `PPV ${ppvGerado} gerado automaticamente`, "Orçamento", null);
+    await registrarLog(newId, `PPV ${ppvGerado} gerado automaticamente`, "Orçamento", null, userNameLog);
   }
 
   const ordens = await getOrdensParaKanban();

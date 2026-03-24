@@ -12,6 +12,7 @@ interface OSDrawerProps {
   osId: string | null;
   clientes: ClienteOption[];
   tecnicos: string[];
+  userName?: string;
   onClose: () => void;
   onSaved: () => void;
 }
@@ -50,7 +51,7 @@ const STATUS_BADGE_STYLE = (status: string) => ({
 
 const BOMBA_HORAS = ["600", "1200", "1800", "2400", "3000"];
 
-export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, onClose, onSaved }: OSDrawerProps) {
+export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, userName, onClose, onSaved }: OSDrawerProps) {
   const [clienteChave, setClienteChave] = useState("");
   const [clienteInfo, setClienteInfo] = useState<ClienteDados | null>(null);
   const [status, setStatus] = useState("Orçamento");
@@ -183,7 +184,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, onCl
     if (!confirm("Deseja enviar esta OS para o Omie?")) return;
     setEnviandoOmie(true);
     try {
-      const res = await fetch(`/api/pos/ordens/${osId}/omie`, { method: "POST" });
+      const res = await fetch(`/api/pos/ordens/${osId}/omie`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userName }) });
       const result = await res.json();
       if (result.sucesso) {
         let msg = `OS enviada para o Omie com sucesso!\nNº Omie: ${result.cNumOS}`;
@@ -214,6 +215,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, onCl
       ordemOmie, motivoCancelamento: motivoCancel, descontoValor: descValor, descontoHora: descHoraValor, descontoKm: descKmValor,
       relatorioTecnico, previsaoExecucao, previsaoFaturamento,
       gerarPPV: mode === "create" && tipoServico === "Revisão" && gerarPPV,
+      userName,
     };
     try {
       const url = mode === "create" ? "/api/pos/ordens" : `/api/pos/ordens/${osId}`;

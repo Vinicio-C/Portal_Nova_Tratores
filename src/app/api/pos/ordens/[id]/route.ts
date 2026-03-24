@@ -69,7 +69,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const agora = new Date();
     const dataFmt = new Intl.DateTimeFormat("pt-BR").format(agora);
     const horaFmt = agora.toLocaleTimeString("pt-BR");
-    const logBase = { Id_ppo: idOs, Data_Acao: dataFmt, Hora_Acao: horaFmt, UsuEmail: "admin.sistema@novatratores.com", Dias_Na_Fase: 0, Total_Dias_Aberto: 0 };
+    const logBase = { Id_ppo: idOs, Data_Acao: dataFmt, Hora_Acao: horaFmt, UsuEmail: dados.userName || "Sistema", Dias_Na_Fase: 0, Total_Dias_Aberto: 0 };
 
     if (stAt !== dados.status) {
       await supabase.from(TBL_LOGS_PPO).insert({ ...logBase, acao: `Mudança para ${dados.status}`, Status_Anterior: stAt, Status_Atual: dados.status });

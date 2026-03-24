@@ -1,10 +1,15 @@
 import { NextResponse } from 'next/server'
-import { fetchProjectUsers } from '@/lib/tarefas/vikunja'
+import { supabase } from '@/lib/supabase'
 
 export async function GET() {
   try {
-    const users = await fetchProjectUsers()
-    return NextResponse.json(users)
+    const { data, error } = await supabase
+      .from('financeiro_usu')
+      .select('id, nome, avatar_url')
+      .order('nome')
+
+    if (error) throw new Error(error.message)
+    return NextResponse.json(data || [])
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Erro desconhecido'
     return NextResponse.json({ error: msg }, { status: 500 })

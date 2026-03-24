@@ -1,43 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { fetchAllTasks, createTask, assignUserToTask } from '@/lib/tarefas/vikunja'
+import { supabase } from '@/lib/supabase'
+
+const TBL = 'portal_tarefas'
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = req.nextUrl
-    const filter = searchParams.get('filter') || 'todas' // minhas | enviadas | todas
-    const vikunjaUserId = searchParams.get('vikunjaUserId') // Vikunja user ID
+    const filter = searchParams.get('filter') || 'todas'
+    const userId = searchParams.get('userId') // UUID do portal
 
-    const allTasks = await fetchAllTasks()
+    const { data, error } = await supabase
+      .from(TBL)
+      .select(`
+        *,
+        criador:financeiro_usu!portal_tarefas_criado_por_fkey(id, nome, avatar_url),
+        atribuido:financeiro_usu!portal_tarefas_atribuido_a_fkey(id, nome, avatar_url)
+      `)
+      .order('created_at', { ascending: false })
 
-    let tasks = allTasks
-    if (vikunjaUserId && filter === 'minhas') {
-      const vid = parseInt(vikunjaUserId)
-      tasks = allTasks.filter((t: any) =>
-        t.assignees?.some((a: any) => a.id === vid)
-      )
-    } else if (vikunjaUserId && filter === 'enviadas') {
-      const vid = parseInt(vikunjaUserId)
-      tasks = allTasks.filter((t: any) => t.created_by?.id === vid)
+    if (error) throw new Error(error.message)
+
+    let tasks = data || []
+
+    if (userId && filter === 'minhas') {
+      tasks = tasks.filter(t => t.atribuido_a === userId)
+    } else if (userId && filter === 'enviadas') {
+      tasks = tasks.filter(t => t.criado_por === userId)
     }
 
     // Enriquecer com status calculado
     const now = new Date()
-    const enriched = tasks.map((t: any) => {
-      let status = 'pendente'
-      if (t.done) status = 'concluida'
-      else if (t.due_date && t.due_date !== '0001-01-01T00:00:00Z' && new Date(t.due_date) < now) {
-        status = 'atrasada'
-      }
-      return { ...t, computed_status: status }
+    const enriched = tasks.map(t => {
+      let computed_status = 'pendente'
+      if (t.concluida) computed_status = 'concluida'
+      else if (t.prazo && new Date(t.prazo) < now) computed_status = 'atrasada'
+      return { ...t, computed_status }
     })
 
-    // Ordenar: atrasadas primeiro, depois por due_date
-    enriched.sort((a: any, b: any) => {
-      const order = { atrasada: 0, pendente: 1, concluida: 2 }
-      const diff = (order[a.computed_status as keyof typeof order] ?? 1) - (order[b.computed_status as keyof typeof order] ?? 1)
+    // Ordenar: atrasadas primeiro, depois pendentes por prazo
+    enriched.sort((a, b) => {
+      const order: Record<string, number> = { atrasada: 0, pendente: 1, concluida: 2 }
+      const diff = (order[a.computed_status] ?? 1) - (order[b.computed_status] ?? 1)
       if (diff !== 0) return diff
-      const aDate = a.due_date === '0001-01-01T00:00:00Z' ? '9999' : a.due_date
-      const bDate = b.due_date === '0001-01-01T00:00:00Z' ? '9999' : b.due_date
+      const aDate = a.prazo || '9999'
+      const bDate = b.prazo || '9999'
       return aDate.localeCompare(bDate)
     })
 
@@ -51,34 +57,28 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { title, description, due_date, priority, assignee_vikunja_id } = body
+    const { titulo, descricao, prazo, prioridade, criado_por, atribuido_a } = body
 
-    if (!title?.trim()) {
+    if (!titulo?.trim()) {
       return NextResponse.json({ error: 'Título obrigatório' }, { status: 400 })
     }
-
-    const taskBody: any = {
-      title: title.trim(),
-      description: description || '',
-      priority: priority || 0,
+    if (!criado_por) {
+      return NextResponse.json({ error: 'Usuário criador obrigatório' }, { status: 400 })
     }
 
-    if (due_date) {
-      taskBody.due_date = new Date(due_date).toISOString()
+    const insert: Record<string, unknown> = {
+      titulo: titulo.trim(),
+      descricao: descricao || '',
+      prioridade: prioridade || 0,
+      criado_por,
+      atribuido_a: atribuido_a || null,
     }
+    if (prazo) insert.prazo = new Date(prazo).toISOString()
 
-    const created = await createTask(taskBody)
+    const { data, error } = await supabase.from(TBL).insert(insert).select().single()
+    if (error) throw new Error(error.message)
 
-    // Atribuir o usuário
-    if (assignee_vikunja_id && created.id) {
-      try {
-        await assignUserToTask(created.id, assignee_vikunja_id)
-      } catch (e) {
-        console.error('Erro ao atribuir usuário à tarefa:', e)
-      }
-    }
-
-    return NextResponse.json(created, { status: 201 })
+    return NextResponse.json(data, { status: 201 })
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Erro desconhecido'
     return NextResponse.json({ error: msg }, { status: 500 })

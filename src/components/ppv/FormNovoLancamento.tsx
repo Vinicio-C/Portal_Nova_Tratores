@@ -6,6 +6,7 @@ import { formatarMoeda } from "@/lib/ppv/utils";
 import { TIPOS_PEDIDO, MOTIVOS_SAIDA } from "@/lib/ppv/constants";
 import { api } from "@/lib/ppv/api";
 import { usePPV } from "@/lib/ppv/PPVContext";
+import { useAuth } from "@/hooks/useAuth";
 
 interface Props {
   onVoltar: () => void;
@@ -25,6 +26,7 @@ export default function FormNovoLancamento({
   clienteValue, osIdValue, osDisplayValue, produtoDisplay, onProdutoDisplayChange,
 }: Props) {
   const { tecnicos, opcoesRevisao, productCache, showToast } = usePPV();
+  const { userProfile } = useAuth();
 
   const [selectedProducts, setSelectedProducts] = useState<Record<string, ProdutoSelecionado>>({});
   const [revTrator, setRevTrator] = useState("");
@@ -141,6 +143,7 @@ export default function FormNovoLancamento({
       const data = await api.criarPedido({
         tipoPedido, motivoSaida, tecnico, cliente: clienteValue,
         observacao, osId: osIdValue, valorTotal: total, produtosSelecionados: prodsList,
+        userName: userProfile?.nome || "",
       });
       showToast("success", "Lançamento salvo!");
       if (data.id) {

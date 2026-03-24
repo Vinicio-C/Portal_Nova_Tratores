@@ -7,10 +7,19 @@ import { useRouter, usePathname } from 'next/navigation'
 
 // ─── MARCA AÇÃO PRÓPRIA (evita auto-notificação) ─────────────────────────────
 const minhasAcoes = new Set()
-export function marcarMinhaAcao(tabela, id) {
+export function marcarMinhaAcao(tabela, id, notifInfo) {
   const key = `${tabela}:${id}`
   minhasAcoes.add(key)
   setTimeout(() => minhasAcoes.delete(key), 15000)
+
+  // Se passou info de notificação, notificar outros usuários do financeiro
+  if (notifInfo) {
+    fetch('/api/financeiro/notificar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(notifInfo),
+    }).catch(() => {})
+  }
 }
 
 // ─── CONVERTE VAPID BASE64 → Uint8Array ──────────────────────────────────────

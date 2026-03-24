@@ -3,8 +3,10 @@ import { supabase } from "@/lib/pos/supabase";
 import { TBL_OS, TBL_LOGS_PPO } from "@/lib/pos/constants";
 import { criarOSNoOmie } from "@/lib/pos/omie";
 
-export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: idOs } = await params;
+  let userName = "Sistema";
+  try { const body = await req.json(); userName = body.userName || "Sistema"; } catch {}
 
   const result = await criarOSNoOmie(idOs);
 
@@ -21,7 +23,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
     await supabase.from(TBL_LOGS_PPO).insert({
       Id_ppo: idOs, Data_Acao: dataFmt, Hora_Acao: horaFmt,
-      UsuEmail: "admin.sistema@novatratores.com",
+      UsuEmail: userName,
       acao: acaoParts.join(" | "),
       Status_Anterior: "Enviado", Status_Atual: "Concluída",
       Dias_Na_Fase: 0, Total_Dias_Aberto: 0,

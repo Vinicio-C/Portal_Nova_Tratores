@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
       valor_total: dadosPPV.valorTotal,
       observacao: dadosPPV.observacao,
       Motivo_Saida_Pedido: dadosPPV.motivoSaida,
-      email_usuario: "sistema@ppv.local",
+      email_usuario: dadosPPV.userName || "Sistema",
       Id_Os: dadosPPV.osId,
     };
     if (!dadosPPV.idExistente) novoDoc.data = dataFormatada;
@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
     if (dadosPPV.idExistente) delete novoDoc.status;
     await supabaseFetch(endpoint, metodo, dadosPPV.idExistente ? novoDoc : [novoDoc]);
     await vincularPPVnaOS(dadosPPV.osId, finalId);
-    await registrarLog(finalId, dadosPPV.idExistente ? "Editou cabeçalho" : "Criou lançamento");
+    await registrarLog(finalId, dadosPPV.idExistente ? "Editou cabeçalho" : "Criou lançamento", dadosPPV.userName || "Sistema");
 
     if (dadosPPV.produtosSelecionados.length > 0) {
       const movimentacoes = dadosPPV.produtosSelecionados.map((p) => ({
@@ -123,7 +123,7 @@ export async function PATCH(req: NextRequest) {
 
     await supabaseFetch(`${TBL_PEDIDOS}?id_pedido=eq.${dados.id}`, "PATCH", payload);
     if (dados.osId) await vincularPPVnaOS(dados.osId, dados.id);
-    await registrarLog(dados.id, `Status: ${dados.status}`);
+    await registrarLog(dados.id, `Status: ${dados.status}`, dados.userName || "Sistema");
 
     return NextResponse.json({ success: true });
   } catch (e) {

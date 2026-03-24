@@ -13,6 +13,7 @@ import {
   CheckCheck, Eye, ClipboardList, Search, Trash2, RefreshCw, AlertCircle, Lock, DollarSign, Barcode, Check, Clock
 } from 'lucide-react'
 import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
+import { marcarMinhaAcao } from '@/components/financeiro/NotificationSystem'
 
 // --- COMPONENTE KANBAN PRINCIPAL ---
 export default function KanbanFinanceiro() {
@@ -27,6 +28,18 @@ const [filtroData, setFiltroData] = useState('');
 const [fileBoleto, setFileBoleto] = useState(null);
 const carregarTimeoutRef = useRef(null);
 const router = useRouter();
+
+const notificarMovimento = (t, novoStatus, descExtra) => {
+  const label = `NF #${t.id} - ${t.nom_cliente || t.tarefa || ''}`;
+  const statusLabels = { gerar_boleto: 'Gerar Boleto', enviar_cliente: 'Enviar ao Cliente', aguardando_vencimento: 'Aguardando Vencimento', pago: 'Pago', vencido: 'Vencido', concluido: 'Concluído' };
+  marcarMinhaAcao('Chamado_NF', t.id, {
+    titulo: `Card movimentado → ${statusLabels[novoStatus] || novoStatus}`,
+    descricao: descExtra || label,
+    link: `/financeiro/kanban-financeiro?id=${t.id}`,
+    userId: userProfile?.id,
+    alvo: userProfile?.funcao === 'Financeiro' ? 'posvendas' : 'financeiro',
+  });
+};
 
 const colunas = [
   { id: 'gerar_boleto', titulo: 'GERAR BOLETO' },
@@ -190,18 +203,31 @@ const handleUpdateFileDirect = async (id, field, file) => {
           updateData.tarefa = 'Pagamento concluído';
         }
 
+        // Auto-move: ao anexar boleto em card "gerar_boleto" → mover para "enviar_cliente"
+        if (field.startsWith('anexo_boleto') && tarefaSelecionada?.status === 'gerar_boleto') {
+          updateData.status = 'enviar_cliente';
+          updateData.tarefa = 'Enviar para o Cliente';
+          updateData.setor = 'Pós-Vendas';
+        }
+
         await supabase.from('Chamado_NF').update(updateData).eq('id', id);
+
+        // Notificar se mudou de fase
+        if (updateData.status === 'enviar_cliente' && tarefaSelecionada) {
+          notificarMovimento(tarefaSelecionada, 'enviar_cliente', `NF #${id} - ${tarefaSelecionada.nom_cliente || ''} — Boleto anexado, enviar ao cliente`);
+        }
 
         if (tarefaSelecionada) {
             setTarefaSelecionada(prev => ({ ...prev, ...updateData }));
         }
 
-        alert("Arquivo atualizado!");
+        alert(updateData.status === 'enviar_cliente' ? "Boleto anexado! Card movido para Enviar ao Cliente." : "Arquivo atualizado!");
         carregarDados();
       } catch (err) { alert("Erro: " + err.message); }
 };
 
 const handleActionMoveStatus = async (t, newStatus) => {
+      notificarMovimento(t, newStatus);
       const now = new Date().toISOString();
       const { error } = await supabase.from('Chamado_NF').update({ status: newStatus }).eq('id', t.id);
       if (!error) {
@@ -213,6 +239,7 @@ const handleActionMoveStatus = async (t, newStatus) => {
 
 const handleActionCobrarCliente = async (t) => {
       const newVal = (t.recombrancas_qtd || 0) + 1;
+      notificarMovimento(t, t.status, `NF #${t.id} - ${t.nom_cliente || ''} — Recobrança #${newVal}`);
       const now = new Date().toISOString();
       const { error } = await supabase.from('Chamado_NF').update({
           tarefa: 'Cobrar Cliente (Recobrança)',
@@ -230,6 +257,7 @@ const handleActionCobrarCliente = async (t) => {
 const handleActionPedirRecobranca = async (t, moverParaVencido = true) => {
     if (!window.confirm("Deseja solicitar recobrança ao Pós-Vendas?")) return;
     const newVal = (t.recombrancas_qtd || 0) + 1;
+    notificarMovimento(t, moverParaVencido ? 'vencido' : t.status, `NF #${t.id} - ${t.nom_cliente || ''} — Recobrança #${newVal}`);
     const now = new Date().toISOString();
 
     let updateData = {
@@ -249,6 +277,7 @@ const handleActionPedirRecobranca = async (t, moverParaVencido = true) => {
 };
 
 const handleActionSomenteVencido = async (t) => {
+    notificarMovimento(t, 'vencido');
     const now = new Date().toISOString();
     const { error } = await supabase.from('Chamado_NF').update({ status: 'vencido' }).eq('id', t.id);
     if (!error) {
@@ -272,6 +301,8 @@ const handleGerarBoletoFaturamentoFinal = async (id, fileArg) => {
         setor: 'Pós-Vendas'
     };
 
+    const t = chamados.find(c => c.id === id) || { id, nom_cliente: '' };
+    notificarMovimento(t, 'enviar_cliente', `NF #${id} - ${t.nom_cliente || ''} — Boleto gerado`);
     await supabase.from('Chamado_NF').update(updateData).eq('id', id);
     supabase.from('Chamado_NF').update({ status_changed_at: new Date().toISOString() }).eq('id', id).catch(() => {});
     setTarefaSelecionada(null); carregarDados();
@@ -640,7 +671,8 @@ return (
               </div>
             </div>
 
-            {/* BOLETOS */}
+            {/* BOLETOS — só mostra se NÃO for Pix/Cartão à vista */}
+            {!isPixOuCartaoVista && (
             <div style={{ background:'rgba(14, 165, 233, 0.03)', border:'1px solid #bfdbfe', padding:'24px', display:'flex', flexDirection:'column', gap:'12px' }}>
               <label style={{...labelModalStyle, margin:0, fontSize:'13px', color:'#3b82f6', display:'flex', alignItems:'center', gap:'8px'}}><Barcode size={16}/> BOLETOS GERADOS</label>
               <AttachmentTag icon={<Barcode size={18} />} label="BOLETO 1" fileUrl={tarefaSelecionada.anexo_boleto} onUpload={(file) => handleUpdateFileDirect(tarefaSelecionada.id, 'anexo_boleto', file)} disabled={tarefaSelecionada.status === 'concluido'} />
@@ -656,13 +688,30 @@ return (
                 </div>
               )}
             </div>
+            )}
           </div>
 
-          {/* OBSERVAÇÕES — só mostra se tiver conteúdo ou se não for concluido */}
+          {/* OBSERVAÇÕES */}
           {(tarefaSelecionada.obs || tarefaSelecionada.status !== 'concluido') && (
-            <div style={{ marginTop:'20px', background:'rgba(245, 246, 250, 0.5)', border:'1px solid #dcdde1', padding:'24px' }}>
-              <label style={{...labelModalStyle, marginBottom:'10px'}}>Observacoes</label>
-              <textarea style={{...inputStyleModal, height:'80px', resize: 'none', padding:'14px'}} disabled={tarefaSelecionada.status === 'concluido'} defaultValue={tarefaSelecionada.obs} placeholder={tarefaSelecionada.status === 'concluido' ? '' : 'Adicionar observacoes...'} onBlur={e => handleUpdateField(tarefaSelecionada.id, 'obs', e.target.value)} />
+            <div style={{ marginTop:'20px', background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'16px', padding:'24px' }}>
+              <label style={{...labelModalStyle, marginBottom:'12px', fontSize:'13px', color:'#64748b', display:'flex', alignItems:'center', gap:'8px'}}>
+                <FileText size={15}/> Observações
+              </label>
+              <textarea
+                style={{
+                  width:'100%', minHeight:'120px', padding:'16px 18px',
+                  border:'1px solid #e2e8f0', borderRadius:'12px', outline:'none',
+                  background: tarefaSelecionada.status === 'concluido' ? '#f1f5f9' : '#ffffff',
+                  color:'#334155', fontSize:'15px', lineHeight:'1.6',
+                  fontFamily:'Montserrat, sans-serif', resize:'vertical', boxSizing:'border-box',
+                  transition:'border-color 0.2s',
+                }}
+                onFocus={e => { if (tarefaSelecionada.status !== 'concluido') e.target.style.borderColor = '#94a3b8' }}
+                onBlur={e => { e.target.style.borderColor = '#e2e8f0'; handleUpdateField(tarefaSelecionada.id, 'obs', e.target.value) }}
+                disabled={tarefaSelecionada.status === 'concluido'}
+                defaultValue={tarefaSelecionada.obs}
+                placeholder={tarefaSelecionada.status === 'concluido' ? '' : 'Adicionar observações...'}
+              />
             </div>
           )}
 

@@ -53,14 +53,14 @@ export const api = {
     tipoPedido: string; motivoSaida: string; tecnico: string;
     cliente: string; observacao: string; osId: string;
     valorTotal: number; produtosSelecionados: unknown[];
-    idExistente?: string;
+    idExistente?: string; userName?: string;
   }) => post<{ id: string; detalhes: PPVDetalhes }>("/api/ppv/pedidos", dados),
 
   editarPedido: (dados: {
     id: string; status: string; observacao: string; tecnico: string;
     cliente?: string;
     motivoCancelamento: string; pedidoOmie: string; osId: string;
-    tipoPedido: string; motivoSaida: string;
+    tipoPedido: string; motivoSaida: string; userName?: string;
   }) => patch<{ success: boolean }>("/api/ppv/pedidos", dados),
 
   // --- Movimentações ---

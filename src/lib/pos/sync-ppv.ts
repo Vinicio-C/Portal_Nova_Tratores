@@ -51,7 +51,7 @@ export async function sincronizarStatusPPV(idOrdem: string, novoStatusPOS: strin
       id_ppv: ppvId,
       data_hora: agora,
       acao: `Status alterado para "${novoStatusPPV}" (sync com ${idOrdem})`,
-      usuario_email: "admin.sistema@novatratores.com",
+      usuario_email: "Sistema",
     }))
   );
 }

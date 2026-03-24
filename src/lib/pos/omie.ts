@@ -615,7 +615,7 @@ async function fecharPPVsVinculados(ppvIds: string[], idOrdem: string): Promise<
       id_ppv: ppvId,
       data_hora: agora,
       acao: `PPV fechado (OS ${idOrdem} enviada para Omie)`,
-      usuario_email: "admin.sistema@novatratores.com",
+      usuario_email: "Sistema",
     }))
   );
 

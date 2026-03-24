@@ -108,6 +108,20 @@ function HomePosVendasContent() {
     if (t.gTipo === 'rh') return `RH #${t.id} - ${t.funcionario || ''}`;
     return `NF #${t.id} - ${t.nom_cliente || t.tarefa || ''}`;
   };
+
+  const notificarMovimento = (tabela, t, novoStatus, descExtra) => {
+    const label = getCardLabel(t);
+    const statusLabels = { gerar_boleto: 'Gerar Boleto', enviar_cliente: 'Enviar ao Cliente', aguardando_vencimento: 'Aguardando Vencimento', pago: 'Pago', vencido: 'Vencido', concluido: 'Concluído', financeiro: 'Financeiro' };
+    const titulo = `Card movimentado → ${statusLabels[novoStatus] || novoStatus}`;
+    const descricao = descExtra || label;
+    const tipo = t.gTipo || 'boleto';
+    marcarMinhaAcao(tabela, t.id, {
+      titulo, descricao,
+      link: `/financeiro/home-financeiro?id=${t.id}&tipo=${tipo}`,
+      userId: userProfile?.id,
+      alvo: 'financeiro',
+    });
+  };
   const getCardTable = (t) => t.gTipo === 'pagar' ? 'finan_pagar' : t.gTipo === 'receber' ? 'finan_receber' : t.gTipo === 'rh' ? 'finan_rh' : 'Chamado_NF';
 
   const handleUpdateField = async (t, field, value) => {
@@ -136,18 +150,21 @@ function HomePosVendasContent() {
   };
 
   const handleConcluirRecobranca = async (t) => {
+    notificarMovimento('Chamado_NF', t, 'vencido', `${getCardLabel(t)} — Recobrança concluída`);
     await supabase.from('Chamado_NF').update({ status: 'vencido', tarefa: 'Cliente Recobrado (Aguardando Financeiro)' }).eq('id', t.id);
     auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { de: t.status, para: 'vencido', acao_desc: 'Recobrança concluída - aguardando Financeiro' } });
     alert(`Cobranca registrada!`); setTarefaSelecionada(null); carregarDados();
   };
 
   const handleConfirmarEnvioBoleto = async (t) => {
+    notificarMovimento('Chamado_NF', t, 'aguardando_vencimento', `${getCardLabel(t)} — Boleto enviado ao cliente`);
     await supabase.from('Chamado_NF').update({ status: 'aguardando_vencimento', tarefa: 'Aguardando Vencimento' }).eq('id', t.id);
     auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { de: t.status, para: 'aguardando_vencimento', acao_desc: 'Boleto enviado ao cliente' } });
     alert("Boleto enviado!"); setTarefaSelecionada(null); carregarDados();
   };
 
   const handleMoverParaPago = async (t) => {
+    notificarMovimento('Chamado_NF', t, 'pago', `${getCardLabel(t)} — Pagamento confirmado`);
     await supabase.from('Chamado_NF').update({ status: 'pago', tarefa: 'Pagamento Confirmado' }).eq('id', t.id);
     auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { de: t.status, para: 'pago', acao_desc: 'Pagamento confirmado' } });
     alert("Confirmado!"); setTarefaSelecionada(null); carregarDados();
@@ -190,6 +207,7 @@ function HomePosVendasContent() {
   // --- LOGICAS CONDICIONAIS DE INTERFACE DO MODAL ---
   const isBoleto30 = tarefaSelecionada?.forma_pagamento === 'Boleto 30 dias';
   const isParcelamento = tarefaSelecionada?.forma_pagamento?.toLowerCase().includes('parcelado');
+  const isPixOuCartaoVista = tarefaSelecionada && ['Pix', 'Cartão a vista'].includes(tarefaSelecionada.forma_pagamento);
   const valorIndividual = tarefaSelecionada ? (tarefaSelecionada.valor_servico / (tarefaSelecionada.qtd_parcelas || 1)) : 0;
 
   return (
@@ -427,8 +445,8 @@ function HomePosVendasContent() {
                         )}
                         {(tarefaSelecionada.obs || tarefaSelecionada.motivo) && (
                           <div style={{gridColumn:'span 2', ...fieldBoxInner}}>
-                            <label style={labelMStyle}>OBSERVACOES</label>
-                            <textarea style={{...inputStyleLight, height:'60px', resize: 'none'}} defaultValue={tarefaSelecionada.obs || tarefaSelecionada.motivo} onBlur={e => handleUpdateField(tarefaSelecionada, tarefaSelecionada.gTipo === 'boleto' ? 'obs' : 'motivo', e.target.value)} />
+                            <label style={labelMStyle}>OBSERVAÇÕES</label>
+                            <textarea style={{...inputStyleLight, minHeight:'100px', resize:'vertical', lineHeight:'1.6', fontSize:'14px', padding:'14px'}} defaultValue={tarefaSelecionada.obs || tarefaSelecionada.motivo} onBlur={e => handleUpdateField(tarefaSelecionada, tarefaSelecionada.gTipo === 'boleto' ? 'obs' : 'motivo', e.target.value)} />
                           </div>
                         )}
                       </>
@@ -463,7 +481,8 @@ function HomePosVendasContent() {
                             </div>
                           </div>
 
-                          {/* COLUNA: BOLETO DEVOLVIDO PELO FINANCEIRO */}
+                          {/* COLUNA: BOLETO DEVOLVIDO PELO FINANCEIRO — só mostra se NÃO for Pix/Cartão à vista */}
+                          {!isPixOuCartaoVista && (
                           <div style={{ background: tarefaSelecionada.anexo_boleto ? '#eff6ff' : '#fef2f2', border: `1px solid ${tarefaSelecionada.anexo_boleto ? '#bfdbfe' : '#fecaca'}`, borderRadius:'22px', padding:'30px' }}>
                             <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'20px' }}>
                               <div style={{ width:'36px', height:'36px', borderRadius:'50%', background: tarefaSelecionada.anexo_boleto ? '#dbeafe' : '#fee2e2', display:'flex', alignItems:'center', justifyContent:'center' }}>
@@ -506,6 +525,7 @@ function HomePosVendasContent() {
                               </div>
                             )}
                           </div>
+                          )}
                         </div>
                       )}
 

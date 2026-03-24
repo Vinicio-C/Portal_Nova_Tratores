@@ -14,6 +14,7 @@ import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import type { KanbanCard, ClienteOption } from "@/lib/pos/types";
 
 function PosPageInner() {
+  const { userProfile } = useAuth();
   const [orders, setOrders] = useState<KanbanCard[]>([]);
   const [clientes, setClientes] = useState<ClienteOption[]>([]);
   const [tecnicos, setTecnicos] = useState<string[]>([]);
@@ -102,7 +103,7 @@ function PosPageInner() {
       const res = await fetch(`/api/pos/ordens/${orderId}/fase`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newPhase }),
+        body: JSON.stringify({ status: newPhase, userName: userProfile?.nome }),
       });
       const data = await res.json();
       if (!res.ok || data.erro) {
@@ -190,6 +191,7 @@ function PosPageInner() {
           osId={selectedOsId}
           clientes={clientes}
           tecnicos={tecnicos}
+          userName={userProfile?.nome || ""}
           onClose={handleDrawerClose}
           onSaved={handleSaved}
         />

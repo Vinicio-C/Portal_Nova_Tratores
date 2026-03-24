@@ -7,6 +7,7 @@ import { normalizarStatus } from "@/lib/ppv/utils";
 import { TIPOS_PEDIDO, MOTIVOS_SAIDA, STATUS_OPTIONS, STATUS_COLORS, type StatusKey } from "@/lib/ppv/constants";
 import { api } from "@/lib/ppv/api";
 import { usePPV } from "@/lib/ppv/PPVContext";
+import { useAuth } from "@/hooks/useAuth";
 import ModalDevolucao from "./ModalDevolucao";
 
 interface Props {
@@ -32,6 +33,7 @@ export default function PPVDrawer({
   modalClienteNome, onDirty,
 }: Props) {
   const { tecnicos, productCache, showToast } = usePPV();
+  const { userProfile } = useAuth();
 
   const [details, setDetails] = useState<PPVDetalhes | null>(null);
   const [status, setStatus] = useState("Aguardando");
@@ -142,7 +144,7 @@ export default function PPVDrawer({
 
     setSalvando(true);
     try {
-      await api.editarPedido({ id: ppvId!, status, observacao, tecnico, cliente, motivoCancelamento, pedidoOmie, osId: modalOSId, tipoPedido, motivoSaida });
+      await api.editarPedido({ id: ppvId!, status, observacao, tecnico, cliente, motivoCancelamento, pedidoOmie, osId: modalOSId, tipoPedido, motivoSaida, userName: userProfile?.nome || "" });
       showToast("success", "Atualizado com sucesso!");
       onDirty?.();
       onClose();

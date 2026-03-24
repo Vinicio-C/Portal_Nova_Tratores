@@ -20,6 +20,7 @@ export const criarPedidoSchema = z.object({
   osId: z.string().optional().default(""),
   valorTotal: z.number().min(0).default(0),
   idExistente: z.string().optional(),
+  userName: z.string().optional().default(""),
   produtosSelecionados: z.array(z.object({
     codigo: z.string().min(1),
     descricao: z.string().default(""),
@@ -39,6 +40,7 @@ export const editarPedidoSchema = z.object({
   osId: z.string().optional().default(""),
   tipoPedido: z.string().optional().default(""),
   motivoSaida: z.string().optional().default(""),
+  userName: z.string().optional().default(""),
 });
 
 export const movimentacaoSchema = z.object({

@@ -2,9 +2,11 @@
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
+import { useState, useEffect } from 'react'
+import { supabase } from '@/lib/supabase'
 import {
   LayoutDashboard, Columns3, BarChart3, History, Receipt, Users,
-  PlusCircle, FileText, DollarSign, UserCog, Settings
+  PlusCircle, FileText, DollarSign, UserCog, AlertTriangle
 } from 'lucide-react'
 
 const ICONS = {
@@ -14,36 +16,65 @@ const ICONS = {
   pagar: Receipt,
   receber: DollarSign,
   rh: Users,
-  config: Settings,
+  vencidos: AlertTriangle,
 }
 
 const LINKS_FINANCEIRO = [
   { label: 'Painel', href: '/financeiro/home-financeiro', icon: 'painel' },
   { label: 'Kanban', href: '/financeiro/kanban-financeiro', icon: 'kanban' },
+  { label: 'Vencidos', href: '/financeiro/vencidos', icon: 'vencidos' },
   { label: 'Dashboard', href: '/financeiro/dashboard', icon: 'dashboard' },
   { label: 'Hist. Pagar', href: '/financeiro/historico-pagar', icon: 'pagar' },
   { label: 'Hist. Receber', href: '/financeiro/historico-receber', icon: 'receber' },
   { label: 'Hist. RH', href: '/financeiro/historico-rh', icon: 'rh' },
   { label: 'Relatório', href: '/financeiro/relatorio-pagar', icon: 'dashboard' },
-  { label: 'Config', href: '/financeiro/configuracoes', icon: 'config' },
 ]
 
 const LINKS_POSVENDAS = [
   { label: 'Painel', href: '/financeiro/home-posvendas', icon: 'painel' },
   { label: 'Kanban', href: '/financeiro/kanban', icon: 'kanban' },
+  { label: 'Vencidos', href: '/financeiro/vencidos', icon: 'vencidos' },
   { label: 'Dashboard', href: '/financeiro/dashboard', icon: 'dashboard' },
   { label: 'Hist. Pagar', href: '/financeiro/historico-pagar', icon: 'pagar' },
   { label: 'Hist. Receber', href: '/financeiro/historico-receber', icon: 'receber' },
   { label: 'Hist. RH', href: '/financeiro/historico-rh', icon: 'rh' },
-  { label: 'Config', href: '/financeiro/configuracoes', icon: 'config' },
 ]
 
 export default function FinanceiroNav({ children }) {
   const pathname = usePathname()
   const { userProfile } = useAuth()
+  const [vencidosCount, setVencidosCount] = useState(0)
 
   const isFinanceiro = userProfile?.funcao === 'Financeiro'
   const links = isFinanceiro ? LINKS_FINANCEIRO : LINKS_POSVENDAS
+
+  // Contar vencidos para badge
+  useEffect(() => {
+    const contarVencidos = async () => {
+      try {
+        const { data } = await supabase
+          .from('Chamado_NF')
+          .select('id, vencimento_boleto, forma_pagamento, status')
+          .in('status', ['vencido', 'aguardando_vencimento'])
+        const hoje = new Date(); hoje.setHours(0,0,0,0)
+        const count = (data || []).filter(c => {
+          if (c.status === 'vencido') return true
+          if (c.status === 'aguardando_vencimento' && c.vencimento_boleto) {
+            const venc = new Date(c.vencimento_boleto); venc.setHours(0,0,0,0)
+            return venc < hoje
+          }
+          return false
+        }).length
+        setVencidosCount(count)
+      } catch {}
+    }
+    contarVencidos()
+    const channel = supabase
+      .channel('nav_vencidos_count')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'Chamado_NF' }, () => contarVencidos())
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [])
 
   return (
     <div style={{
@@ -56,7 +87,7 @@ export default function FinanceiroNav({ children }) {
         display: 'flex', alignItems: 'center',
         height: '56px', gap: '8px',
       }}>
-        {/* Nav tabs — tudo junto, sem título separado */}
+        {/* Nav tabs */}
         <nav style={{
           display: 'flex', alignItems: 'center', gap: '4px',
           flex: 1, overflowX: 'auto',
@@ -64,18 +95,34 @@ export default function FinanceiroNav({ children }) {
           {links.map(link => {
             const isActive = pathname === link.href
             const Icon = ICONS[link.icon]
+            const isVencidosTab = link.icon === 'vencidos'
+            const hasVencidos = isVencidosTab && vencidosCount > 0
+
             return (
               <Link key={link.href} href={link.href} style={{
                 display: 'flex', alignItems: 'center', gap: '7px',
                 padding: '9px 18px', borderRadius: '8px',
                 fontSize: '14px', fontWeight: isActive ? '600' : '500',
-                color: isActive ? '#dc2626' : '#737373',
-                background: isActive ? '#fef2f2' : 'transparent',
+                color: isActive ? (isVencidosTab ? '#dc2626' : '#dc2626') : hasVencidos ? '#ef4444' : '#737373',
+                background: isActive ? (isVencidosTab && hasVencidos ? '#fef2f2' : '#fef2f2') : hasVencidos ? 'rgba(239,68,68,0.06)' : 'transparent',
                 textDecoration: 'none', transition: 'all 0.15s',
                 whiteSpace: 'nowrap',
+                position: 'relative',
+                animation: hasVencidos && !isActive ? 'pulse-vencido 2s ease-in-out infinite' : 'none',
               }}>
                 <Icon size={17} strokeWidth={isActive ? 2.5 : 2} />
                 {link.label}
+                {hasVencidos && (
+                  <span style={{
+                    background: '#ef4444', color: '#fff',
+                    fontSize: '10px', fontWeight: '700',
+                    padding: '1px 6px', borderRadius: '10px',
+                    minWidth: '18px', textAlign: 'center',
+                    lineHeight: '16px',
+                  }}>
+                    {vencidosCount}
+                  </span>
+                )}
               </Link>
             )
           })}
@@ -88,6 +135,13 @@ export default function FinanceiroNav({ children }) {
           </div>
         )}
       </div>
+
+      <style>{`
+        @keyframes pulse-vencido {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.6; }
+        }
+      `}</style>
     </div>
   )
 }
