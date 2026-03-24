@@ -80,6 +80,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   const [showProjModal, setShowProjModal] = useState(false);
   const [showRevModal, setShowRevModal] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
+  const [logRefreshKey, setLogRefreshKey] = useState(0);
   const [requisicoes, setRequisicoes] = useState<Array<{ id: string; atualizada: boolean; material: string }>>([]);
   const [clienteFilter, setClienteFilter] = useState("");
   const [gerarPPV, setGerarPPV] = useState(false);
@@ -193,6 +194,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
         alert(msg);
         setOrdemOmie(String(result.nCodOS));
         setStatus("Concluída");
+        setLogRefreshKey((k) => k + 1);
         onSaved?.();
       } else {
         alert(`Erro ao enviar para o Omie:\n${result.erro}`);
@@ -228,6 +230,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
         return;
       }
       setSaving(false);
+      setLogRefreshKey((k) => k + 1);
       onClose();
       onSaved();
     } catch (err) {
@@ -737,7 +740,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
             )}
           </div>
 
-          {mode === "edit" && <LogPanel osId={osId} visible={showLogs} />}
+          {mode === "edit" && <LogPanel osId={osId} visible={showLogs} refreshKey={logRefreshKey} />}
         </div>
       </div>
 

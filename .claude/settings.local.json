@@ -197,7 +197,10 @@
       "Bash(grep -r \"VIKUNJA\" C:/projetos/portal --include=\".env*\" --include=\"*.ts\" --include=\"*.tsx\" 2>/dev/null | grep -v \".next\" | head -30)",
       "Bash(grep -r \"useRefreshOnFocus\" C:/projetos/portal/src --include=\"*.ts\" --include=\"*.tsx\" 2>/dev/null | grep -v \".next\")",
       "Bash(du -h C:/projetos/portal/src/app/\\\\\\(portal\\\\\\)/tarefas/page.tsx C:/projetos/portal/src/app/api/tarefas/route.ts C:/projetos/portal/src/app/api/tarefas/\\\\[id\\\\]/route.ts C:/projetos/portal/src/app/api/tarefas/users/route.ts C:/projetos/portal/src/lib/tarefas/vikunja.ts 2>/dev/null)",
-      "Bash(ls \"C:/projetos/portal/src/app/\\(portal\\)/financeiro/\")"
+      "Bash(ls \"C:/projetos/portal/src/app/\\(portal\\)/financeiro/\")",
+      "Bash(git diff:*)",
+      "Bash(wc -l /c/projetos/portal/src/components/pos/*.tsx /c/projetos/portal/src/components/ppv/*.tsx 2>/dev/null | tail -1)",
+      "Bash(wc -l /c/projetos/portal/src/app/api/pos/**/*.ts /c/projetos/portal/src/app/api/ppv/**/*.ts 2>/dev/null | tail -1)"
     ]
   }
 }
