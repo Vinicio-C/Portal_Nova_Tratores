@@ -200,7 +200,17 @@
       "Bash(ls \"C:/projetos/portal/src/app/\\(portal\\)/financeiro/\")",
       "Bash(git diff:*)",
       "Bash(wc -l /c/projetos/portal/src/components/pos/*.tsx /c/projetos/portal/src/components/ppv/*.tsx 2>/dev/null | tail -1)",
-      "Bash(wc -l /c/projetos/portal/src/app/api/pos/**/*.ts /c/projetos/portal/src/app/api/ppv/**/*.ts 2>/dev/null | tail -1)"
+      "Bash(wc -l /c/projetos/portal/src/app/api/pos/**/*.ts /c/projetos/portal/src/app/api/ppv/**/*.ts 2>/dev/null | tail -1)",
+      "Bash(head -5 \"C:\\\\projetos\\\\portal\\\\Ordem_Servico_rows \\(12\\).csv\")",
+      "Bash(cd C:/projetos && npx create-next-app@latest mecanicos --typescript --tailwind --eslint --app --src-dir --no-turbopack --import-alias \"@/*\" 2>&1 | tail -5])",
+      "Bash(cd C:/projetos && echo -e \"No\\\\nNo\" | npx create-next-app@latest mecanicos --typescript --tailwind --eslint --app --src-dir --no-turbopack --import-alias \"@/*\" 2>&1 | tail -15)",
+      "Bash(cd C:/projetos && printf \"No\\\\nNo\\\\n\" | npx create-next-app@latest mecanicos --typescript --tailwind --eslint --app --src-dir --no-turbopack --import-alias \"@/*\" 2>&1 | tail -20)",
+      "Bash(cd C:/projetos && yes \"No\" | npx create-next-app@latest mecanicos --typescript --tailwind --eslint --app --src-dir --no-turbopack --import-alias \"@/*\" 2>&1 | tail -20)",
+      "Bash(cd C:/projetos/mecanicos && mkdir -p src/app/login src/app/\\\\\\(app\\\\\\)/agenda src/app/\\\\\\(app\\\\\\)/os/\\\\[id\\\\]/execucao src/app/\\\\\\(app\\\\\\)/requisicoes/nova src/app/\\\\\\(app\\\\\\)/requisicoes/\\\\[id\\\\] src/app/\\\\\\(app\\\\\\)/notificacoes src/app/\\\\\\(app\\\\\\)/perfil src/components src/hooks src/lib)",
+      "Bash(ls \"C:/projetos/mecanicos/src/app/\\(app\\)/os/[id]/\")",
+      "Bash(ls \"C:/projetos/mecanicos/src/app/\\(app\\)/os/[id]/execucao/\")",
+      "Bash(find \"C:\\\\projetos\\\\portal/src/app/\\(portal\\)\" -type f -name \"*.tsx\" -o -name \"*.ts\" | head -20)",
+      "Bash(ls -la \"C:\\\\projetos\\\\portal/src/app/\\(portal\\)/financeiro/\" 2>/dev/null || echo \"Directory check\")"
     ]
   }
 }

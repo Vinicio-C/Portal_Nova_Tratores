@@ -9,7 +9,7 @@ import {
   LogOut, Settings, ClipboardList, Wrench, FileText,
   DollarSign, Package, Menu, X, User as UserIcon,
   LayoutDashboard, Bell, ChevronRight, Activity, Lock, MessageCircle,
-  CheckCheck, Trash2, ExternalLink
+  CheckCheck, Trash2, ExternalLink, Calendar, Users
 } from 'lucide-react'
 import Link from 'next/link'
 import ChatPanel from './chat/ChatPanel'
@@ -87,6 +87,22 @@ const navItems: NavItem[] = [
     icon: <Activity size={18} />,
     tag: 'LOGS',
     gradient: 'linear-gradient(135deg, #dc2626, #991b1b)'
+  },
+  {
+    id: 'agenda-tecnicos',
+    name: 'Agenda Técnicos',
+    href: '/agenda-tecnicos',
+    icon: <Calendar size={18} />,
+    tag: 'CAMPO',
+    gradient: 'linear-gradient(135deg, #1E3A5F, #2563eb)'
+  },
+  {
+    id: 'painel-mecanicos',
+    name: 'Painel Mecânicos',
+    href: '/painel-mecanicos',
+    icon: <Users size={18} />,
+    tag: 'CAMPO',
+    gradient: 'linear-gradient(135deg, #1E3A5F, #1d4ed8)'
   }
 ]
 

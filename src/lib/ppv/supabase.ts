@@ -30,6 +30,11 @@ export async function supabaseFetch<T = unknown>(
     Prefer: "return=representation",
   };
 
+  // Remove o limite padrão de 1000 linhas do PostgREST para GETs sem limit explícito
+  if (method === "GET" && !cleanEndpoint.includes("limit=")) {
+    headers["Range"] = "0-9999";
+  }
+
   const options: RequestInit = { method, headers, cache: "no-store" };
   if (payload) options.body = JSON.stringify(payload);
 
