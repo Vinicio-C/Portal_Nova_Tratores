@@ -30,7 +30,18 @@ export default function OSCard({ order: o, onClick }: OSCardProps) {
         <i>{o.servSolicitado}</i>
       </div>
       <div style={{ fontSize: 10, color: "var(--text-light)" }}><i className="far fa-calendar-alt" /> Criado: {diasCriado} dias</div>
-      <div style={{ fontSize: 10, color: "var(--primary)", marginBottom: 10 }}><i className="fas fa-clock" /> Na fase: {diasFase} dias</div>
+      <div style={{ fontSize: 10, color: "var(--primary)", marginBottom: 6 }}><i className="fas fa-clock" /> Na fase: {diasFase} dias</div>
+      {o.ultimaAcao && (
+        <div style={{ background: "#F8F9FA", borderRadius: 6, padding: "6px 8px", marginBottom: 8, border: "1px solid #E9ECEF" }}>
+          <div style={{ fontSize: 10, fontWeight: 600, color: "#374151", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {o.ultimaAcao}
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "#9CA3AF" }}>
+            <span><i className="far fa-user" style={{ marginRight: 3 }} />{o.ultimoUsuario}</span>
+            <span>{o.ultimaData}</span>
+          </div>
+        </div>
+      )}
       <div style={{ display: "flex", gap: 8, borderTop: "1px dashed var(--border)", paddingTop: 8, alignItems: "center" }}>
         {o.temPPV ? (
           <a

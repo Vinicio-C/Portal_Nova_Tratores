@@ -77,6 +77,17 @@ const MiniCard = memo(function MiniCard({
           {isTipoRem ? "REM" : "PPV"}
         </span>
       </div>
+      {o.ultimaAcao && (
+        <div style={{ background: "#F8F9FA", borderRadius: 6, padding: "6px 8px", marginTop: 8, border: "1px solid #E9ECEF" }}>
+          <div style={{ fontSize: 10, fontWeight: 600, color: "#374151", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {o.ultimaAcao}
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "#9CA3AF" }}>
+            <span><i className="far fa-user" style={{ marginRight: 3 }} />{o.ultimoUsuario}</span>
+            <span>{o.ultimaData}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 });

@@ -5,6 +5,18 @@ import { formatarDataBR, safeGet } from "@/lib/pos/utils";
 
 const FASES_EXCLUIDAS = new Set(["Concluída", "Cancelada"]);
 
+function extrairSolicitacao(texto: string): string {
+  if (!texto) return "";
+  const marcador = "Solicitação do cliente:";
+  const idx = texto.indexOf(marcador);
+  if (idx === -1) return texto.trim();
+  const depois = texto.substring(idx + marcador.length);
+  const fimMarcador = "Serviço Realizado:";
+  const idxFim = depois.indexOf(fimMarcador);
+  const resultado = idxFim !== -1 ? depois.substring(0, idxFim) : depois;
+  return resultado.trim() || "";
+}
+
 const CORES_FASE: Record<string, string> = {
   "Orçamento": "#3B82F6",
   "Orçamento enviado para o cliente e aguardando": "#60A5FA",
@@ -32,6 +44,8 @@ export async function GET() {
       status: (safeGet(row, "Status") as string) || "",
       projeto: (safeGet(row, "Projeto") as string) || "",
       tipo: (safeGet(row, "Tipo_Servico") as string) || "",
+      descricaoServico: extrairSolicitacao((safeGet(row, "Serv_Solicitado") as string) || ""),
+      ppv: (safeGet(row, "ID_PPV") as string) || "",
       horas: qtdHr,
       km: qtdKm,
       total: vTotal,
@@ -62,9 +76,9 @@ export async function GET() {
         <span class="fase-subtotal">R$ ${subtotal.toFixed(2)}</span>
       </div>
       <table>
-        <thead><tr><th>OS</th><th>Data</th><th>Cliente</th><th>Técnico</th><th>Projeto</th><th>Tipo</th><th>HR</th><th>KM</th><th style="text-align:right">Total</th></tr></thead>
+        <thead><tr><th>OS</th><th>Data</th><th>Cliente</th><th>Técnico</th><th>Projeto</th><th>Tipo</th><th>Descrição do Serviço</th><th>PPV</th><th>HR</th><th>KM</th><th style="text-align:right">Total</th></tr></thead>
         <tbody>
-          ${items.map((r) => `<tr><td><b>${r.id}</b></td><td>${r.data}</td><td>${r.cliente}</td><td>${r.tecnico}</td><td>${r.projeto || "-"}</td><td>${r.tipo}</td><td>${r.horas}</td><td>${r.km}</td><td style="text-align:right;font-weight:600">R$ ${r.total.toFixed(2)}</td></tr>`).join("")}
+          ${items.map((r) => `<tr><td><b>${r.id}</b></td><td>${r.data}</td><td>${r.cliente}</td><td>${r.tecnico}</td><td>${r.projeto || "-"}</td><td>${r.tipo}</td><td class="desc-col">${r.descricaoServico || "-"}</td><td>${r.ppv || "-"}</td><td>${r.horas}</td><td>${r.km}</td><td style="text-align:right;font-weight:600">R$ ${r.total.toFixed(2)}</td></tr>`).join("")}
         </tbody>
       </table>
     </div>`;
@@ -92,6 +106,7 @@ export async function GET() {
   th { background: #1E293B; color: white; padding: 6px 8px; text-align: left; font-size: 7pt; text-transform: uppercase; letter-spacing: 0.5px; }
   td { padding: 5px 8px; border-bottom: 1px solid #F1F5F9; font-size: 9pt; }
   tr:nth-child(even) { background: #FAFBFC; }
+  .desc-col { max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .total-bar { margin-top: 20px; padding: 14px 20px; background: #1E293B; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; color: white; }
   .total-bar .lbl { font-size: 10pt; font-weight: 700; }
   .total-bar .val { font-size: 20pt; font-weight: 900; }

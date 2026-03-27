@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseFetch, getValorInsensivel, formatarDataBR } from "@/lib/ppv/supabase";
-import { TBL_PEDIDOS, TBL_ITENS } from "@/lib/ppv/constants";
+import { TBL_PEDIDOS, TBL_ITENS, TBL_LOGS } from "@/lib/ppv/constants";
 import { buscarPPVPorId, atualizarValorTotal, registrarLog, vincularPPVnaOS, gerarProximoId, sincronizarStatusComOS } from "@/lib/ppv/queries";
 import { criarPedidoSchema, editarPedidoSchema } from "@/lib/ppv/schemas";
 
@@ -17,19 +17,45 @@ export async function GET(req: NextRequest) {
   // Sincroniza status com OS em background (não bloqueia resposta)
   sincronizarStatusComOS().catch(() => {});
 
-  const dados = await supabaseFetch<Record<string, unknown>[]>(
-    `${TBL_PEDIDOS}?select=id_pedido,cliente,tecnico,Tipo_Pedido,status,valor_total,data,observacao&order=data.desc`
-  );
-  const lista = (dados || []).map((r) => ({
-    id: getValorInsensivel(r, "id_pedido"),
-    cliente: getValorInsensivel(r, "cliente"),
-    tecnico: getValorInsensivel(r, "tecnico"),
-    tipo: getValorInsensivel(r, "Tipo_Pedido"),
-    status: getValorInsensivel(r, "status"),
-    valor: getValorInsensivel(r, "valor_total"),
-    data: getValorInsensivel(r, "data"),
-    observacao: getValorInsensivel(r, "observacao"),
-  }));
+  const [dados, logsData] = await Promise.all([
+    supabaseFetch<Record<string, unknown>[]>(
+      `${TBL_PEDIDOS}?select=id_pedido,cliente,tecnico,Tipo_Pedido,status,valor_total,data,observacao&order=data.desc`
+    ),
+    supabaseFetch<Record<string, unknown>[]>(
+      `${TBL_LOGS}?select=id_ppv,acao,usuario_email,data_hora&order=id.desc`
+    ),
+  ]);
+
+  // Mapa: id_ppv → último log (primeiro encontrado pois ordenado desc)
+  const mapaUltimoLog: Record<string, { acao: string; usuario: string; data: string }> = {};
+  (logsData || []).forEach((l) => {
+    const idPpv = String(l.id_ppv || "");
+    if (idPpv && !mapaUltimoLog[idPpv]) {
+      mapaUltimoLog[idPpv] = {
+        acao: String(l.acao || ""),
+        usuario: String(l.usuario_email || ""),
+        data: String(l.data_hora || ""),
+      };
+    }
+  });
+
+  const lista = (dados || []).map((r) => {
+    const id = String(getValorInsensivel(r, "id_pedido") || "");
+    const ultimoLog = mapaUltimoLog[id];
+    return {
+      id,
+      cliente: getValorInsensivel(r, "cliente"),
+      tecnico: getValorInsensivel(r, "tecnico"),
+      tipo: getValorInsensivel(r, "Tipo_Pedido"),
+      status: getValorInsensivel(r, "status"),
+      valor: getValorInsensivel(r, "valor_total"),
+      data: getValorInsensivel(r, "data"),
+      observacao: getValorInsensivel(r, "observacao"),
+      ultimaAcao: ultimoLog?.acao || "",
+      ultimoUsuario: ultimoLog?.usuario || "",
+      ultimaData: ultimoLog?.data || "",
+    };
+  });
 
   return NextResponse.json(lista);
 }

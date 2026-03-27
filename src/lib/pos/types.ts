@@ -43,6 +43,9 @@ export interface KanbanCard {
   previsaoExecucao: string;
   previsaoFaturamento: string;
   diasAtraso: number;
+  ultimaAcao: string;
+  ultimoUsuario: string;
+  ultimaData: string;
 }
 
 export interface ClienteOption {
@@ -56,6 +59,7 @@ export interface ClienteDados {
   email: string;
   telefone: string;
   endereco: string;
+  cidade?: string;
 }
 
 export interface Produto {
@@ -97,6 +101,7 @@ export interface OSFormData {
   nomeCliente: string;
   cpfCliente: string;
   enderecoCliente: string;
+  cidadeCliente?: string;
   tecnicoResponsavel: string;
   tecnico2: string;
   tipoServico: string;

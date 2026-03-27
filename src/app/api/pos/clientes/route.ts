@@ -14,9 +14,10 @@ export async function GET(req: NextRequest) {
     if (data && data.length > 0) {
       const c = data[0];
       if (tipo === "OMIE") {
-        return NextResponse.json({ nome: c.nome_fantasia || c.razao_social, cpf: c.cnpj_cpf || "", email: c.email || "", telefone: c.telefone || "", endereco: c.endereco || "" });
+        const enderecoCompleto = [c.endereco, c.cidade].filter(Boolean).join(", ");
+        return NextResponse.json({ nome: c.nome_fantasia || c.razao_social, cpf: c.cnpj_cpf || "", email: c.email || "", telefone: c.telefone || "", endereco: enderecoCompleto, cidade: c.cidade || "" });
       }
-      return NextResponse.json({ nome: c.Cli_Nome, cpf: c.Cli_Cpf_Cnpj || "", email: c.Cli_Email || "", telefone: c.Cli_Fone || "", endereco: (c.Cli_Endereco || "") + (c.Cli_Cidade ? ", " + c.Cli_Cidade : "") });
+      return NextResponse.json({ nome: c.Cli_Nome, cpf: c.Cli_Cpf_Cnpj || "", email: c.Cli_Email || "", telefone: c.Cli_Fone || "", endereco: (c.Cli_Endereco || "") + (c.Cli_Cidade ? ", " + c.Cli_Cidade : ""), cidade: c.Cli_Cidade || "" });
     }
     return NextResponse.json({ nome: "Não encontrado" });
   }

@@ -89,20 +89,20 @@ const navItems: NavItem[] = [
     gradient: 'linear-gradient(135deg, #dc2626, #991b1b)'
   },
   {
-    id: 'agenda-tecnicos',
-    name: 'Agenda Técnicos',
-    href: '/agenda-tecnicos',
-    icon: <Calendar size={18} />,
-    tag: 'CAMPO',
-    gradient: 'linear-gradient(135deg, #1E3A5F, #2563eb)'
-  },
-  {
     id: 'painel-mecanicos',
     name: 'Painel Mecânicos',
     href: '/painel-mecanicos',
     icon: <Users size={18} />,
     tag: 'CAMPO',
     gradient: 'linear-gradient(135deg, #1E3A5F, #1d4ed8)'
+  },
+  {
+    id: 'meu-painel',
+    name: 'Meu Painel',
+    href: '/meu-painel',
+    icon: <UserIcon size={18} />,
+    tag: 'TÉCNICO',
+    gradient: 'linear-gradient(135deg, #7C3AED, #5B21B6)'
   }
 ]
 

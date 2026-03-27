@@ -102,7 +102,7 @@ async function getOrdensParaKanban(): Promise<KanbanCard[]> {
   // Todas as queries em paralelo
   const [{ data: ordens }, { data: logs }, { data: metricasAbertas }] = await Promise.all([
     supabase.from(TBL_OS).select("*").order("Id_Ordem", { ascending: false }),
-    supabase.from(TBL_LOGS_PPO).select("Id_ppo,Data_Acao").order("id", { ascending: false }),
+    supabase.from(TBL_LOGS_PPO).select("Id_ppo,Data_Acao,Hora_Acao,acao,UsuEmail").order("id", { ascending: false }),
     supabase.from(TBL_METRICAS).select("id_ordem, dias").is("data_fim", null),
   ]);
 
@@ -112,12 +112,21 @@ async function getOrdensParaKanban(): Promise<KanbanCard[]> {
   });
 
   const mapaDatasFase: Record<string, string> = {};
+  const mapaUltimoLog: Record<string, { acao: string; usuario: string; data: string }> = {};
   (logs || []).forEach((l) => {
-    if (!mapaDatasFase[l.Id_ppo]) mapaDatasFase[l.Id_ppo] = l.Data_Acao;
+    if (!mapaDatasFase[l.Id_ppo]) {
+      mapaDatasFase[l.Id_ppo] = l.Data_Acao;
+      mapaUltimoLog[l.Id_ppo] = {
+        acao: l.acao || "",
+        usuario: l.UsuEmail || "",
+        data: (l.Data_Acao || "") + " " + (l.Hora_Acao || ""),
+      };
+    }
   });
 
   return (ordens || []).map((row) => {
     const osId = safeGet(row, "Id_Ordem") as string;
+    const ultimoLog = mapaUltimoLog[osId];
     return {
       id: osId,
       cliente: (safeGet(row, "Os_Cliente") as string) || "",
@@ -134,6 +143,9 @@ async function getOrdensParaKanban(): Promise<KanbanCard[]> {
       previsaoExecucao: (safeGet(row, "Previsao_Execucao") as string) || "",
       previsaoFaturamento: (safeGet(row, "Previsao_Faturamento") as string) || "",
       diasAtraso: mapaAtraso[osId] || 0,
+      ultimaAcao: ultimoLog?.acao || "",
+      ultimoUsuario: ultimoLog?.usuario || "",
+      ultimaData: ultimoLog?.data || "",
     };
   });
 }
@@ -277,7 +289,7 @@ export async function POST(req: NextRequest) {
 
   const { error } = await supabase.from(TBL_OS).insert({
     Id_Ordem: newId, Status: "Orçamento", Data: new Date().toISOString().split("T")[0],
-    Os_Cliente: dados.nomeCliente, Cnpj_Cliente: dados.cpfCliente, Endereco_Cliente: dados.enderecoCliente,
+    Os_Cliente: dados.nomeCliente, Cnpj_Cliente: dados.cpfCliente, Endereco_Cliente: dados.enderecoCliente, Cidade_Cliente: dados.cidadeCliente || '',
     Os_Tecnico: dados.tecnicoResponsavel, Os_Tecnico2: dados.tecnico2,
     Tipo_Servico: dados.tipoServico, Revisao: dados.revisao, Projeto: dados.projeto,
     Serv_Solicitado: dados.servicoSolicitado, Qtd_HR: parseFloat(dados.qtdHoras || 0),

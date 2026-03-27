@@ -96,6 +96,16 @@ const systems: SystemCard[] = [
     tag: 'TAREFAS'
   },
   {
+    id: 'painel-mecanicos',
+    name: 'Painel Mecânicos',
+    description: 'Agenda semanal, caminhos, pontuação e gestão dos técnicos de campo',
+    icon: <Users size={28} />,
+    color: '#dc2626',
+    gradient: 'linear-gradient(135deg, #dc2626, #ef4444)',
+    href: '/painel-mecanicos',
+    tag: 'TÉCNICOS'
+  },
+  {
     id: 'mapa-geral',
     name: 'Mapa Geral',
     description: 'Visualização geográfica de clientes, máquinas e operações',
@@ -124,6 +134,7 @@ const systemToModulo: Record<string, string> = {
   'ppv': 'ppv',
   'proposta-comercial': 'propostas',
   'tarefas': 'tarefas',
+  'painel-mecanicos': 'pos',
   'mapa-geral': 'mapa',
 }
 

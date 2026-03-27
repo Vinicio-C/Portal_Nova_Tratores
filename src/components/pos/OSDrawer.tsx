@@ -211,7 +211,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
     setSaving(true);
     const dados = {
       id: osId, nomeCliente: clienteInfo?.nome, cpfCliente: clienteInfo?.cpf,
-      enderecoCliente: clienteInfo?.endereco, tecnicoResponsavel: tecnico1, tecnico2,
+      enderecoCliente: clienteInfo?.endereco, cidadeCliente: clienteInfo?.cidade || '', tecnicoResponsavel: tecnico1, tecnico2,
       tipoServico, revisao, projeto, servicoSolicitado: servSolicitado,
       qtdHoras, qtdKm, ppv, status: mode === "create" ? "Orçamento" : status,
       ordemOmie, motivoCancelamento: motivoCancel, descontoValor: descValor, descontoHora: descHoraValor, descontoKm: descKmValor,

@@ -11,6 +11,9 @@ export interface KanbanItem {
   valor: number;
   data: string;
   observacao: string;
+  ultimaAcao: string;
+  ultimoUsuario: string;
+  ultimaData: string;
 }
 
 export interface ProdutoSelecionado {
