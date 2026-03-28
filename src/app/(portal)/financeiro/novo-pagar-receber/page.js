@@ -4,22 +4,10 @@ import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
 import { useAuditLog } from '@/hooks/useAuditLog'
-// ÍCONES
-import { 
-  ArrowLeft, FileText, Calendar, User, Hash, 
-  CheckCircle, Upload, Paperclip, X, PlusCircle, CreditCard 
+import {
+  FileText, Calendar, User, Hash,
+  CheckCircle, Upload, Paperclip, X, CreditCard
 } from 'lucide-react'
-
-// --- 1. TELA DE CARREGAMENTO PADRONIZADA ---
-function LoadingScreen() {
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: '#212124', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <h1 style={{ color: '#f8fafc', fontFamily: 'Montserrat, sans-serif', fontWeight: '300', fontSize: '28px', letterSpacing: '4px', textTransform: 'uppercase', textAlign: 'center' }}>
-            Fluxo Financeiro <br /> <span style={{ fontWeight: '400', fontSize: '32px', color: '#9e9e9e' }}>Nova Tratores</span>
-        </h1>
-    </div>
-  )
-}
 
 export default function NovoPagarReceber() {
   const { log: auditLog } = useAuditLog()
@@ -31,15 +19,15 @@ export default function NovoPagarReceber() {
   const [fileBoleto, setFileBoleto] = useState(null)
   const [filesReq, setFilesReq] = useState([])
 
-  const [formData, setFormData] = useState({ 
-    entidade: '', 
-    valor: '', 
-    vencimento: '', 
+  const [formData, setFormData] = useState({
+    entidade: '',
+    valor: '',
+    vencimento: '',
     motivo: '',
     numero_NF: '',
-    metodo: '' // Novo campo
+    metodo: ''
   })
-  
+
   const router = useRouter()
 
   useEffect(() => {
@@ -99,150 +87,178 @@ export default function NovoPagarReceber() {
     } catch (e) { alert(e.message) } finally { setLoading(false) }
   }
 
-  if (pageLoading) return <LoadingScreen />
+  if (pageLoading) return (
+    <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <p style={{ color: '#6b7280', fontSize: '16px', letterSpacing: '2px', fontFamily: 'Montserrat, sans-serif' }}>Carregando...</p>
+    </div>
+  )
 
   return (
-    <div style={{ minHeight: '100vh', background: '#2a2a2d', fontFamily: 'Montserrat, sans-serif', color: '#f1f5f9' }}>
+    <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'Montserrat, sans-serif', color: '#1e293b' }}>
       <FinanceiroNav />
 
-      <main style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '30px 20px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '32px 20px' }}>
+        <div style={{ width: '100%', maxWidth: '720px' }}>
 
-        <div style={{ background:'#3f3f44', padding:'60px', borderRadius:'35px', width:'100%', maxWidth:'750px', border: '0.5px solid #55555a', boxShadow: '0 30px 80px rgba(0,0,0,0.3)' }}>
-          <h2 style={{ textAlign:'center', color:'#ffffff', fontWeight:'300', fontSize:'32px', marginBottom:'50px', letterSpacing:'-1px' }}>Novo Registro Financeiro</h2>
-          
-          <form onSubmit={salvar} style={{ display:'flex', flexDirection:'column', gap:'30px' }}>
+          <h2 style={{ fontWeight: '500', fontSize: '24px', color: '#1e293b', marginBottom: '32px' }}>Novo Registro Financeiro</h2>
 
-              <div>
-                <label style={labelStyle}>Escolha o Fornecedor</label>
-                <div style={{ position: 'relative' }}>
-                  <User size={20} style={iconInputStyle} />
-                  <select required style={inputStyle} onChange={e=>setFormData({...formData, entidade: e.target.value})}>
-                      <option value="">Selecione na lista...</option>
-                      {fornecedores.map(f => <option key={f.id} value={f.nome}>{f.nome}</option>)}
-                  </select>
-                </div>
-              </div>
+          <form onSubmit={salvar} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
 
-              <div>
-                <label style={labelStyle}>Método de Pagamento</label>
-                <div style={{ position: 'relative' }}>
-                  <CreditCard size={20} style={iconInputStyle} />
-                  <select required style={inputStyle} onChange={e=>setFormData({...formData, metodo: e.target.value})}>
-                      <option value="">Selecione...</option>
-                      <option value="Boleto">Boleto</option>
-                      <option value="Pix">Pix</option>
-                      <option value="Cartão de Crédito">Cartão de Crédito</option>
-                      <option value="Cartão de Débito">Cartão de Débito</option>
-                      <option value="Dinheiro">Dinheiro</option>
-                      <option value="Transferência">Transferência</option>
-                  </select>
-                </div>
-              </div>
+            {/* FORNECEDOR */}
+            <Field label="Fornecedor" icon={<User size={18} />}>
+              <select required style={selectStyle} onChange={e => setFormData({...formData, entidade: e.target.value})}>
+                <option value="">Selecione na lista...</option>
+                {fornecedores.map(f => <option key={f.id} value={f.nome}>{f.nome}</option>)}
+              </select>
+            </Field>
 
-              <div>
-                <label style={labelStyle}>Número da Nota Fiscal</label>
-                <div style={{ position: 'relative' }}>
-                  <Hash size={20} style={iconInputStyle} />
-                  <input placeholder="000.000.000" required style={inputStyle} onChange={e=>setFormData({...formData, numero_NF: e.target.value})} />
-                </div>
-              </div>
+            {/* METODO */}
+            <Field label="Metodo de Pagamento" icon={<CreditCard size={18} />}>
+              <select required style={selectStyle} onChange={e => setFormData({...formData, metodo: e.target.value})}>
+                <option value="">Selecione...</option>
+                <option value="Boleto">Boleto</option>
+                <option value="Pix">Pix</option>
+                <option value="Cartão de Crédito">Cartao de Credito</option>
+                <option value="Cartão de Débito">Cartao de Debito</option>
+                <option value="Dinheiro">Dinheiro</option>
+                <option value="Transferência">Transferencia</option>
+              </select>
+            </Field>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '25px' }}>
-                  <div>
-                    <label style={labelStyle}>Valor do Registro</label>
-                    <div style={{ position: 'relative' }}>
-                      <span style={{ position: 'absolute', left: '18px', top: '50%', transform: 'translateY(-50%)', color: '#9e9e9e', fontSize: '16px' }}>R$</span>
-                      <input type="number" step="0.01" placeholder="0,00" required style={{...inputStyle, paddingLeft: '50px'}} onChange={e=>setFormData({...formData, valor: e.target.value})} />
+            {/* NF */}
+            <Field label="Numero da Nota Fiscal" icon={<Hash size={18} />}>
+              <input placeholder="000.000.000" required style={inputIconStyle} onChange={e => setFormData({...formData, numero_NF: e.target.value})} />
+            </Field>
+
+            {/* VALOR + VENCIMENTO */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <Field label="Valor do Registro" icon={<Hash size={18} />}>
+                <input type="number" step="0.01" placeholder="0,00" required style={inputIconStyle} onChange={e => setFormData({...formData, valor: e.target.value})} />
+              </Field>
+              <Field label="Data de Vencimento" icon={<Calendar size={18} />}>
+                <input type="date" required style={inputIconStyle} onChange={e => setFormData({...formData, vencimento: e.target.value})} />
+              </Field>
+            </div>
+
+            {/* DESCRICAO */}
+            <div>
+              <label style={labelStyle}>Descricao ou Motivo</label>
+              <textarea
+                rows={3}
+                placeholder="Descreva os detalhes deste lancamento..."
+                required
+                style={{ ...inputStyle, resize: 'none', minHeight: '80px' }}
+                onChange={e => setFormData({...formData, motivo: e.target.value})}
+              />
+            </div>
+
+            {/* DOCUMENTOS */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', padding: '24px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
+              <label style={{ ...labelStyle, marginBottom: '0' }}>Documentacao</label>
+
+              <FileUploadBtn file={fileNFServ} onSelect={setFileNFServ} label="Nota Fiscal Principal" required />
+
+              <FileUploadBtn file={null} onSelect={null} label="Anexar Requisicoes de Compra" isMulti filesReq={filesReq} setFilesReq={setFilesReq} />
+
+              {filesReq.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', padding: '12px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e5e7eb' }}>
+                  {filesReq.map((f, i) => (
+                    <div key={i} style={{ fontSize: '12px', background: '#ffffff', color: '#1e293b', padding: '6px 12px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid #e5e7eb' }}>
+                      {f.name.substring(0, 20)}
+                      <X size={14} style={{ cursor: 'pointer', color: '#ef4444' }} onClick={() => setFilesReq(filesReq.filter((_, idx) => idx !== i))} />
                     </div>
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Data de Vencimento</label>
-                    <div style={{ position: 'relative' }}>
-                      <Calendar size={20} style={iconInputStyle} />
-                      <input type="date" required style={inputStyle} onChange={e=>setFormData({...formData, vencimento: e.target.value})} />
-                    </div>
-                  </div>
-              </div>
+                  ))}
+                  <button type="button" onClick={() => setFilesReq([])} style={{ fontSize: '11px', color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>Limpar Tudo</button>
+                </div>
+              )}
 
-              <div>
-                <label style={labelStyle}>Descrição ou Motivo</label>
-                <textarea placeholder="Descreva os detalhes deste lançamento..." required style={{...inputStyle, height:'100px', resize: 'none', paddingLeft:'20px'}} onChange={e=>setFormData({...formData, motivo: e.target.value})} />
-              </div>
+              <FileUploadBtn file={fileBoleto} onSelect={setFileBoleto} label="Anexar Boleto (Opcional)" />
+            </div>
 
-              <div style={{ background:'#4a4a4f', padding:'30px', borderRadius:'20px', border:'0.5px solid #626268', display:'flex', flexDirection:'column', gap:'18px' }}>
-                <label style={{...labelStyle, color: '#bdbdbd', marginBottom:'5px'}}>Anexar Documentação</label>
-                
-                <label style={fileBtnStyle(!!fileNFServ)}>
-                    <Upload size={18}/> {fileNFServ ? fileNFServ.name.substring(0, 30) : "Nota Fiscal Principal"}
-                    <input type="file" required hidden onChange={e=>setFileNFServ(e.target.files[0])} />
-                </label>
-
-                <label style={fileBtnStyle(filesReq.length > 0, true)}>
-                    <Paperclip size={18}/> {filesReq.length > 0 ? `${filesReq.length} Requisições Adicionadas` : "Anexar Requisições de Compra"}
-                    <input
-                      type="file"
-                      multiple
-                      hidden
-                      onChange={e => {
-                        const novos = Array.from(e.target.files);
-                        setFilesReq(prev => [...prev, ...novos]);
-                      }}
-                    />
-                </label>
-
-                {filesReq.length > 0 && (
-                    <div style={{display:'flex', flexWrap:'wrap', gap:'10px', padding:'15px', background:'#2a2a2d', borderRadius:'15px'}}>
-                        {filesReq.map((f, i) => (
-                            <div key={i} style={{fontSize:'12px', background:'#3f3f44', color:'#f1f5f9', padding:'6px 14px', borderRadius:'10px', display:'flex', alignItems:'center', gap:'8px', border: '0.5px solid #55555a'}}>
-                                {f.name.substring(0,15)}...
-                                <X size={14} style={{cursor:'pointer', color:'#fca5a5'}} onClick={() => setFilesReq(filesReq.filter((_, idx) => idx !== i))}/>
-                            </div>
-                        ))}
-                        <button type="button" onClick={() => setFilesReq([])} style={{fontSize:'11px', color:'#fca5a5', background:'none', border:'none', cursor:'pointer', paddingLeft: '10px', textDecoration: 'underline'}}>Limpar Tudo</button>
-                    </div>
-                )}
-
-                <label style={{...fileBtnStyle(!!fileBoleto), borderStyle: 'dashed', opacity: 0.8}}>
-                    <CreditCard size={18}/> {fileBoleto ? fileBoleto.name.substring(0, 30) : "Anexar Boleto (Opcional)"}
-                    <input type="file" hidden onChange={e=>setFileBoleto(e.target.files[0])} />
-                </label>
-              </div>
-
-              <button disabled={loading} style={submitBtnStyle(loading)}>
-                {loading ? "Processando arquivos..." : "Finalizar e Criar Registro"}
-              </button>
-            </form>
+            <button disabled={loading} type="submit" style={{
+              background: loading ? '#e5e7eb' : '#1e293b',
+              color: loading ? '#6b7280' : '#ffffff',
+              border: 'none',
+              padding: '16px',
+              borderRadius: '10px',
+              fontWeight: '600',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              fontSize: '15px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '10px',
+              transition: '0.2s',
+              fontFamily: 'Montserrat, sans-serif'
+            }}>
+              {loading ? 'Processando...' : <><CheckCircle size={18} /> Finalizar e Criar Registro</>}
+            </button>
+          </form>
         </div>
-      </main>
-
-      <style jsx global>{`
-        select { appearance: none; }
-        button:hover { opacity: 1 !important; transform: translateY(-1px); transition: 0.2s; }
-      `}</style>
+      </div>
     </div>
   )
 }
 
-const labelStyle = { fontSize: '13px', color: '#9e9e9e', marginBottom: '10px', display: 'block', letterSpacing: '1px', textTransform: 'uppercase' };
-const inputStyle = { width: '100%', padding: '18px 18px 18px 52px', borderRadius: '14px', border: '0.5px solid #55555a', outline: 'none', fontSize: '16px', background: '#242427', color: '#ffffff', boxSizing: 'border-box', transition: '0.3s' };
-const iconInputStyle = { position: 'absolute', left: '18px', top: '50%', transform: 'translateY(-50%)', color: '#6b7280', zIndex: 10 };
+// --- COMPONENTES AUXILIARES ---
+function Field({ label, icon, children }) {
+  return (
+    <div>
+      <label style={labelStyle}>{label}</label>
+      <div style={{ position: 'relative' }}>
+        {icon && <div style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', zIndex: 1, display: 'flex' }}>{icon}</div>}
+        {children}
+      </div>
+    </div>
+  )
+}
 
-const tipoBtnStyle = (active, color) => ({
-  flex: 1, padding: '18px', borderRadius: '15px', border: active ? `1px solid ${color}` : '0.5px solid #55555a',
-  background: active ? `${color}20` : 'transparent', color: active ? color : '#9e9e9e', cursor: 'pointer', transition: '0.3s', fontSize: '16px'
-});
+function FileUploadBtn({ file, onSelect, label, required, isMulti, filesReq, setFilesReq }) {
+  if (isMulti) {
+    return (
+      <label style={{
+        display: 'flex', alignItems: 'center', gap: '12px',
+        padding: '12px 16px',
+        background: filesReq && filesReq.length > 0 ? '#dbeafe' : '#f8fafc',
+        border: `1px ${filesReq && filesReq.length > 0 ? 'solid' : 'dashed'} ${filesReq && filesReq.length > 0 ? '#93c5fd' : '#d1d5db'}`,
+        borderRadius: '10px', cursor: 'pointer', transition: '0.2s',
+        fontSize: '14px', color: filesReq && filesReq.length > 0 ? '#1d4ed8' : '#6b7280'
+      }}>
+        {filesReq && filesReq.length > 0 ? <CheckCircle size={18} /> : <Paperclip size={18} />}
+        <span style={{ flex: 1 }}>{filesReq && filesReq.length > 0 ? `${filesReq.length} Requisicoes Adicionadas` : label}</span>
+        <input type="file" multiple hidden onChange={e => {
+          const novos = Array.from(e.target.files);
+          setFilesReq(prev => [...prev, ...novos]);
+        }} />
+      </label>
+    )
+  }
 
-const fileBtnStyle = (hasFile, isMultiple = false) => ({
-  display: 'flex', alignItems: 'center', gap: '15px', padding: '16px 20px', borderRadius: '12px', 
-  border: '0.5px solid #55555a', background: hasFile ? (isMultiple ? '#1e293b' : '#14532d40') : '#242427', 
-  color: hasFile ? (isMultiple ? '#93c5fd' : '#4ade80') : '#bdbdbd', fontSize: '15px', cursor: 'pointer', transition: '0.2s'
-});
+  return (
+    <label style={{
+      display: 'flex', alignItems: 'center', gap: '12px',
+      padding: '12px 16px',
+      background: file ? '#f0fdf4' : '#f8fafc',
+      border: `1px ${file ? 'solid' : 'dashed'} ${file ? '#86efac' : '#d1d5db'}`,
+      borderRadius: '10px', cursor: 'pointer', transition: '0.2s',
+      fontSize: '14px', color: file ? '#16a34a' : '#6b7280'
+    }}>
+      {file ? <CheckCircle size={18} /> : <Upload size={18} />}
+      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {file ? file.name : label}
+      </span>
+      {file && (
+        <span onClick={(e) => { e.preventDefault(); onSelect(null); }} style={{ color: '#ef4444', cursor: 'pointer', display: 'flex' }}>
+          <X size={16} />
+        </span>
+      )}
+      <input type="file" required={required && !file} hidden onChange={(e) => onSelect(e.target.files[0])} />
+    </label>
+  )
+}
 
-const submitBtnStyle = (loading) => ({
-  background: loading ? '#55555a' : '#fca5a520',
-  color: '#fca5a5',
-  border: '1px solid #fca5a5',
-  padding: '22px', borderRadius: '18px',
-  cursor: loading ? 'not-allowed' : 'pointer', fontSize: '17px', marginTop: '15px',
-  transition: '0.3s', opacity: loading ? 0.6 : 0.9
-});
+// --- ESTILOS ---
+const labelStyle = { display: 'block', fontSize: '12px', fontWeight: '600', color: '#6b7280', marginBottom: '6px', letterSpacing: '0.5px', textTransform: 'uppercase' };
+const inputStyle = { width: '100%', padding: '12px 14px', borderRadius: '8px', border: '1px solid #e5e7eb', outline: 'none', background: '#ffffff', color: '#1e293b', fontSize: '15px', boxSizing: 'border-box', fontFamily: 'Montserrat, sans-serif', transition: '0.2s' };
+const inputIconStyle = { ...inputStyle, paddingLeft: '42px' };
+const selectStyle = { ...inputIconStyle, appearance: 'none', cursor: 'pointer' };

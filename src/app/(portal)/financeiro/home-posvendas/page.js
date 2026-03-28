@@ -52,6 +52,7 @@ function HomePosVendasContent() {
   const { log: auditLog } = useAuditLog()
   const [tarefaSelecionada, setTarefaSelecionada] = useState(null);
   const [listaBoletos, setListaBoletos] = useState([]);
+  const [listaSemBoleto, setListaSemBoleto] = useState([]);
   const [listaPagar, setListaPagar] = useState([]);
   const [listaRH, setListaRH] = useState([]);
   const [showNovoMenu, setShowNovoMenu] = useState(false);
@@ -78,6 +79,16 @@ function HomePosVendasContent() {
         });
 
       setListaBoletos(tarefasFaturamento);
+
+      // Clientes sem boleto (status = 'sem_boleto')
+      const semBoleto = (bolds || [])
+        .filter(t => t.status === 'sem_boleto')
+        .map(t => ({
+          ...t,
+          valor_exibicao: t.valor_servico,
+          gTipo: 'boleto'
+        }));
+      setListaSemBoleto(semBoleto);
 
       const { data: pag } = await supabase.from('finan_pagar').select('*').eq('status', 'financeiro').order('id', { ascending: false });
       const { data: rh } = await supabase.from('finan_rh').select('*').neq('status', 'concluido');
@@ -163,6 +174,13 @@ function HomePosVendasContent() {
     alert("Boleto enviado!"); setTarefaSelecionada(null); carregarDados();
   };
 
+  const handleMoverSemBoleto = async (t) => {
+    notificarMovimento('Chamado_NF', t, 'sem_boleto', `${getCardLabel(t)} — Movido para Cliente Sem Boleto`);
+    await supabase.from('Chamado_NF').update({ status: 'sem_boleto', tarefa: 'Cliente Sem Boleto' }).eq('id', t.id);
+    auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { de: t.status, para: 'sem_boleto', acao_desc: 'Movido para Cliente Sem Boleto' } });
+    carregarDados();
+  };
+
   const handleMoverParaPago = async (t) => {
     notificarMovimento('Chamado_NF', t, 'pago', `${getCardLabel(t)} — Pagamento confirmado`);
     await supabase.from('Chamado_NF').update({ status: 'pago', tarefa: 'Pagamento Confirmado' }).eq('id', t.id);
@@ -233,7 +251,6 @@ function HomePosVendasContent() {
                 {[
                   { label: 'Chamado NF', desc: 'Nota fiscal', href: '/financeiro/novo-chamado-nf' },
                   { label: 'Chamado Pagar', desc: 'Conta a pagar', href: '/financeiro/novo-pagar-receber?tipo=pagar' },
-                  { label: 'Chamado Receber', desc: 'Conta a receber', href: '/financeiro/novo-pagar-receber?tipo=receber' },
                   { label: 'Chamado RH', desc: 'Solicitacao RH', href: '/financeiro/novo-chamado-rh' },
                 ].map((item, i, arr) => (
                   <div key={item.href} style={{
@@ -255,18 +272,29 @@ function HomePosVendasContent() {
 
       <div style={{ padding: '24px 32px' }}>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '30px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '30px' }}>
           {/* COLUNA FATURAMENTO (FILTRADA: SEM PIX, APENAS ENVIAR OU COBRAR) */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               <div style={colHeaderStyle}>TAREFA FATURAMENTO</div>
               {listaBoletos.map(t => (
-                <div key={`boleto-${t.id}`} onClick={() => setTarefaSelecionada(t)} className="task-card">
-                  <div style={{ background: t.tarefa?.includes('Cobrar') ? '#fef2f2' : '#ffffff', padding: '25px', borderBottom: '1px solid #e5e7eb' }}>
-                    <div style={{fontSize: '10px', color: t.tarefa?.includes('Cobrar') ? '#dc2626' : '#6b7280', letterSpacing:'1px', marginBottom: '8px', textTransform:'uppercase'}}>{t.tarefa}</div>
-                    <span style={{fontSize:'18px', color:'#1e293b', display:'block', lineHeight: '1.2'}}>{t.nom_cliente?.toUpperCase()}</span>
-                    {t.isPagamentoRealizado && <div style={{marginTop: '10px', color: '#10b981', fontSize: '11px', fontWeight: '600'}}>&#10003; PAGAMENTO REALIZADO</div>}
+                <div key={`boleto-${t.id}`} className="task-card" style={{ position: 'relative' }}>
+                  <div onClick={() => setTarefaSelecionada(t)} style={{ background: t.tarefa?.includes('Cobrar') ? '#fef2f2' : '#ffffff', padding: '25px', borderBottom: '1px solid #e5e7eb' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{fontSize: '10px', color: t.tarefa?.includes('Cobrar') ? '#dc2626' : '#6b7280', letterSpacing:'1px', marginBottom: '8px', textTransform:'uppercase'}}>{t.tarefa}</div>
+                        <span style={{fontSize:'18px', color:'#1e293b', display:'block', lineHeight: '1.2'}}>{t.nom_cliente?.toUpperCase()}</span>
+                        {t.isPagamentoRealizado && <div style={{marginTop: '10px', color: '#10b981', fontSize: '11px', fontWeight: '600'}}>&#10003; PAGAMENTO REALIZADO</div>}
+                      </div>
+                      <button
+                        title="Mover para Cliente Sem Boleto"
+                        onClick={(e) => { e.stopPropagation(); handleMoverSemBoleto(t); }}
+                        style={{ background: '#f8fafc', border: '1px solid #e5e7eb', borderRadius: '8px', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#6b7280', fontSize: '14px', fontWeight: '700', transition: '0.2s', flexShrink: 0 }}
+                        onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.color = '#dc2626'; e.currentTarget.style.borderColor = '#fca5a5'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.color = '#6b7280'; e.currentTarget.style.borderColor = '#e5e7eb'; }}
+                      >@</button>
+                    </div>
                   </div>
-                  <div style={{ padding: '25px', background: '#f9fafb' }}>
+                  <div onClick={() => setTarefaSelecionada(t)} style={{ padding: '25px', background: '#f9fafb', cursor: 'pointer' }}>
                     <div style={{display:'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom:'15px'}}>
                       <div style={cardMetaStyle}><CreditCard size={13}/> {t.forma_pagamento?.toUpperCase()}</div>
                       <div style={cardMetaStyle}><Calendar size={13}/> {formatarDataBR(t.vencimento_boleto)}</div>
@@ -282,19 +310,23 @@ function HomePosVendasContent() {
               <div style={colHeaderStyle}>REQUISICOES</div>
               {listaPagar.map((t) => (
                 <div key={`pag-${t.id}`} onClick={() => setTarefaSelecionada(t)} className="task-card">
-                  <div style={{ padding: '24px', background: '#fef2f2', borderLeft: '6px solid #ef4444' }}>
-                      <small style={{ color: '#dc2626', letterSpacing: '1px', textTransform: 'uppercase', fontSize: '11px', fontWeight: '600' }}>FORNECEDOR</small>
-                      <div style={{ marginTop: '10px', fontSize: '20px', color: '#1e293b' }}>{t.fornecedor?.toUpperCase()}</div>
-                      <div style={{ fontSize: '24px', marginTop: '12px', color: '#1e293b' }}>{formatarMoeda(t.valor)}</div>
+                  <div style={{ background: '#ffffff', padding: '25px', borderBottom: '1px solid #e5e7eb' }}>
+                    <div style={{fontSize: '10px', color: '#6b7280', letterSpacing:'1px', marginBottom: '8px', textTransform:'uppercase'}}>{t.metodo || 'Despesa'}</div>
+                    <span style={{fontSize:'18px', color:'#1e293b', display:'block', lineHeight: '1.2'}}>{t.fornecedor?.toUpperCase()}</span>
+                    {getRequisicoes(t).filter(r => r.numero).length > 0 && (
                       <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                         {getRequisicoes(t).filter(r => r.numero).map((req, i) => (
                           <span key={i} style={{ background: '#fef2f2', color: '#dc2626', fontSize: '10px', fontWeight: '600', padding: '4px 8px', border: '1px solid #fca5a5', borderRadius: '4px' }}>#{req.numero}</span>
                         ))}
                       </div>
+                    )}
                   </div>
-                  <div style={{ padding: '14px 24px', background: '#f9fafb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ color: '#6b7280', fontSize: '13px' }}>{t.metodo || 'Despesa'}</span>
-                    <span style={{ color: '#dc2626', fontSize: '13px', fontWeight: '600' }}>VENC: {formatarDataBR(t.data_vencimento)}</span>
+                  <div style={{ padding: '25px', background: '#f9fafb' }}>
+                    <div style={{display:'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom:'15px'}}>
+                      <div style={cardMetaStyle}><CreditCard size={13}/> {t.metodo?.toUpperCase() || 'DESPESA'}</div>
+                      <div style={cardMetaStyle}><Calendar size={13}/> {formatarDataBR(t.data_vencimento)}</div>
+                    </div>
+                    <div style={{fontSize:'26px', color: '#1e293b'}}>{formatarMoeda(t.valor)}</div>
                   </div>
                 </div>
               ))}
@@ -314,6 +346,35 @@ function HomePosVendasContent() {
                   </div>
                 </div>
               ))}
+          </div>
+
+          {/* COLUNA CLIENTE SEM BOLETO */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div style={colHeaderStyle}>CLIENTE SEM BOLETO</div>
+              {listaSemBoleto.map(t => (
+                <div key={`sb-${t.id}`} className="task-card">
+                  <div onClick={() => setTarefaSelecionada(t)} style={{ background: '#ffffff', padding: '25px', borderBottom: '1px solid #e5e7eb', cursor: 'pointer' }}>
+                    <div style={{fontSize: '10px', color: '#6b7280', letterSpacing:'1px', marginBottom: '8px', textTransform:'uppercase'}}>{t.forma_pagamento?.toUpperCase() || 'SEM BOLETO'}</div>
+                    <span style={{fontSize:'18px', color:'#1e293b', display:'block', lineHeight: '1.2'}}>{t.nom_cliente?.toUpperCase()}</span>
+                  </div>
+                  <div style={{ padding: '20px 25px', background: '#f9fafb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{fontSize:'22px', color: '#1e293b'}}>{formatarMoeda(t.valor_exibicao)}</div>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleMoverParaPago(t); }}
+                      style={{ background: '#16a34a', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '10px', cursor: 'pointer', fontSize: '12px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px', transition: '0.2s', whiteSpace: 'nowrap' }}
+                      onMouseEnter={e => e.currentTarget.style.background = '#15803d'}
+                      onMouseLeave={e => e.currentTarget.style.background = '#16a34a'}
+                    >
+                      <CheckCircle size={14}/> Mover para Pago
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {listaSemBoleto.length === 0 && (
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: '#9ca3af', fontSize: '13px' }}>
+                  Nenhum cliente sem boleto
+                </div>
+              )}
           </div>
       </div>
 

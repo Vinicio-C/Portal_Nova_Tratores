@@ -204,6 +204,11 @@ export default function Kanban() {
     carregarDados();
  };
 
+ const handleMoverSemBoleto = async (t) => {
+    await supabase.from('Chamado_NF').update({ status: 'sem_boleto', tarefa: 'Cliente Sem Boleto' }).eq('id', t.id);
+    carregarDados();
+ };
+
  const chamadosFiltrados = chamados.filter(c => {
     const matchCliente = c.nom_cliente?.toLowerCase().includes(filtroCliente.toLowerCase());
     const matchNF = (c.num_nf_servico?.toString().includes(filtroNF) || c.num_nf_peca?.toString().includes(filtroNF));
@@ -258,9 +263,18 @@ export default function Kanban() {
            if(col.id === 'gerar_boleto') return c.status === 'gerar_boleto' || c.status === 'validar_pix';
            return c.status === col.id;
         }).map(t => (
-         <div key={t.id} onClick={() => setTarefaSelecionada(t)} className="kanban-card">
+         <div key={t.id} className="kanban-card">
           <div style={{ background: t.status === 'vencido' ? '#fef2f2' : (t.status === 'pago' ? '#f0fdf4' : '#ffffff'), padding: '25px', color: '#1e293b', borderBottom: '1px solid #e5e7eb' }}>
-           <h4 style={{ margin: 0, fontSize: '20px', fontWeight: '500', color: t.status === 'vencido' ? '#dc2626' : (t.status === 'pago' ? '#16a34a' : '#1e293b') }}>{t.nom_cliente?.toUpperCase()}</h4>
+           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+             <h4 onClick={() => setTarefaSelecionada(t)} style={{ margin: 0, fontSize: '20px', fontWeight: '500', color: t.status === 'vencido' ? '#dc2626' : (t.status === 'pago' ? '#16a34a' : '#1e293b'), cursor: 'pointer', flex: 1 }}>{t.nom_cliente?.toUpperCase()}</h4>
+             <button
+               title="Mover para Cliente Sem Boleto"
+               onClick={(e) => { e.stopPropagation(); handleMoverSemBoleto(t); }}
+               style={{ background: '#f8fafc', border: '1px solid #e5e7eb', borderRadius: '8px', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#6b7280', fontSize: '14px', fontWeight: '700', transition: '0.2s', flexShrink: 0 }}
+               onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.color = '#dc2626'; e.currentTarget.style.borderColor = '#fca5a5'; }}
+               onMouseLeave={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.color = '#6b7280'; e.currentTarget.style.borderColor = '#e5e7eb'; }}
+             >@</button>
+           </div>
            {t.isPagamentoRealizado && (
              <div style={{ marginTop: '12px', display:'flex', alignItems:'center', gap:'6px', color:'#16a34a', fontSize:'11px', fontWeight:'600', letterSpacing:'1px' }}>
                <CheckCircle size={14}/> PAGAMENTO REALIZADO
@@ -294,7 +308,7 @@ export default function Kanban() {
              </div>
            )}
           </div>
-          <div style={{ padding: '25px', background:'#f9fafb' }}>
+          <div onClick={() => setTarefaSelecionada(t)} style={{ padding: '25px', background:'#f9fafb', cursor: 'pointer' }}>
            <div style={cardInfoStyle}><CreditCard size={16}/> <span>FORMA:</span> {t.forma_pagamento?.toUpperCase()}</div>
            <div style={cardInfoStyle}><Calendar size={16}/> <span>VENC:</span> {formatarDataBR(t.vencimento_boleto)}</div>
            <div style={{fontSize:'32px', fontWeight:'500', margin:'15px 0', color:'#1e293b'}}>{formatarMoeda(t.valor_exibicao)}</div>

@@ -24,10 +24,9 @@ const LINKS_FINANCEIRO = [
   { label: 'Kanban', href: '/financeiro/kanban-financeiro', icon: 'kanban' },
   { label: 'Vencidos', href: '/financeiro/vencidos', icon: 'vencidos' },
   { label: 'Dashboard', href: '/financeiro/dashboard', icon: 'dashboard' },
-  { label: 'Hist. Pagar', href: '/financeiro/historico-pagar', icon: 'pagar' },
-  { label: 'Hist. Receber', href: '/financeiro/historico-receber', icon: 'receber' },
-  { label: 'Hist. RH', href: '/financeiro/historico-rh', icon: 'rh' },
-  { label: 'Relatório', href: '/financeiro/relatorio-pagar', icon: 'dashboard' },
+  { label: 'Historico Pagar', href: '/financeiro/historico-pagar', icon: 'pagar' },
+  { label: 'Historico RH', href: '/financeiro/historico-rh', icon: 'rh' },
+  { label: 'Relatorio', href: '/financeiro/relatorio-pagar', icon: 'dashboard' },
 ]
 
 const LINKS_POSVENDAS = [
@@ -35,9 +34,8 @@ const LINKS_POSVENDAS = [
   { label: 'Kanban', href: '/financeiro/kanban', icon: 'kanban' },
   { label: 'Vencidos', href: '/financeiro/vencidos', icon: 'vencidos' },
   { label: 'Dashboard', href: '/financeiro/dashboard', icon: 'dashboard' },
-  { label: 'Hist. Pagar', href: '/financeiro/historico-pagar', icon: 'pagar' },
-  { label: 'Hist. Receber', href: '/financeiro/historico-receber', icon: 'receber' },
-  { label: 'Hist. RH', href: '/financeiro/historico-rh', icon: 'rh' },
+  { label: 'Historico Pagar', href: '/financeiro/historico-pagar', icon: 'pagar' },
+  { label: 'Historico RH', href: '/financeiro/historico-rh', icon: 'rh' },
 ]
 
 export default function FinanceiroNav({ children }) {
@@ -102,7 +100,7 @@ export default function FinanceiroNav({ children }) {
               <Link key={link.href} href={link.href} style={{
                 display: 'flex', alignItems: 'center', gap: '7px',
                 padding: '9px 18px', borderRadius: '8px',
-                fontSize: '14px', fontWeight: isActive ? '600' : '500',
+                fontSize: '15px', fontWeight: isActive ? '600' : '500',
                 color: isActive ? (isVencidosTab ? '#dc2626' : '#dc2626') : hasVencidos ? '#ef4444' : '#737373',
                 background: isActive ? (isVencidosTab && hasVencidos ? '#fef2f2' : '#fef2f2') : hasVencidos ? 'rgba(239,68,68,0.06)' : 'transparent',
                 textDecoration: 'none', transition: 'all 0.15s',

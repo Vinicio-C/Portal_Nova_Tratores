@@ -337,9 +337,9 @@ function HomeFinanceiroContent() {
           <div onClick={() => router.push('/financeiro/novo-chamado-nf')} style={{ padding:'12px 16px', cursor:'pointer', color:'#1a1a1a', borderBottom:'1px solid #f5f5f5', fontSize:'13px', fontWeight: '600', transition: '0.15s' }}
             onMouseEnter={e => e.currentTarget.style.background='#fef2f2'}
             onMouseLeave={e => e.currentTarget.style.background='transparent'}>Boleto</div>
-          <div onClick={() => router.push('/financeiro/novo-pagar-receber')} style={{ padding:'12px 16px', cursor:'pointer', color:'#1a1a1a', borderBottom:'1px solid #f5f5f5', fontSize:'13px', fontWeight: '600', transition: '0.15s' }}
+          <div onClick={() => router.push('/financeiro/novo-pagar-receber?tipo=pagar')} style={{ padding:'12px 16px', cursor:'pointer', color:'#1a1a1a', borderBottom:'1px solid #f5f5f5', fontSize:'13px', fontWeight: '600', transition: '0.15s' }}
             onMouseEnter={e => e.currentTarget.style.background='#fef2f2'}
-            onMouseLeave={e => e.currentTarget.style.background='transparent'}>Pagar/Receber</div>
+            onMouseLeave={e => e.currentTarget.style.background='transparent'}>Pagar</div>
           <div onClick={() => router.push('/financeiro/novo-chamado-rh')} style={{ padding:'12px 16px', cursor:'pointer', color:'#dc2626', fontSize:'13px', fontWeight: '600', transition: '0.15s' }}
             onMouseEnter={e => e.currentTarget.style.background='#fef2f2'}
             onMouseLeave={e => e.currentTarget.style.background='transparent'}>RH</div>
@@ -403,19 +403,20 @@ function HomeFinanceiroContent() {
        <div style={{ display: 'flex', flexDirection: 'column', gap: '0px', borderTop: '0.5px solid #dcdde1' }}>
         {listaPagar.map((t, idx) => (
          <div key={`pag-${t.id}-${idx}`} onClick={() => setTarefaSelecionada(t)} className="task-card-grid">
-          <div style={{padding:'24px', background: '#fef2f2', borderLeft: '6px solid #ef4444', borderBottom: '0.5px solid #dcdde1'}}>
-            <h4 style={{fontSize:'12px', color:'#ef4444', fontWeight:'600', letterSpacing:'1px', marginBottom:'8px'}}>FORNECEDOR</h4>
-            <div style={{fontSize:'20px', color:'#1e293b', fontWeight: '500'}}>{t.fornecedor?.toUpperCase()}</div>
-            <div style={{fontSize:'24px', color:'#0f172a', marginTop:'15px', fontWeight: '500'}}>{formatarMoeda(t.valor)}</div>
-            <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-              {getRequisicoes(t).filter(r => r.numero).map((req, i) => (
-                <span key={i} style={{ background: '#fef2f2', color: '#ef4444', fontSize: '10px', fontWeight: '600', padding: '4px 8px', border: '1px solid #fca5a5', borderRadius: '4px' }}>#{req.numero}</span>
-              ))}
-            </div>
+          <div style={{ background: '#f1f5f9', padding: '24px', borderBottom: '0.5px solid #dcdde1' }}>
+            <h4 style={{ margin: 0, fontSize: '18px', fontWeight:'500', color: '#1e293b' }}>{t.fornecedor?.toUpperCase()}</h4>
+            {getRequisicoes(t).filter(r => r.numero).length > 0 && (
+              <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                {getRequisicoes(t).filter(r => r.numero).map((req, i) => (
+                  <span key={i} style={{ background: '#e0f2fe', color: '#0369a1', fontSize: '10px', fontWeight: '600', padding: '4px 8px', border: '1px solid #7dd3fc', borderRadius: '4px' }}>#{req.numero}</span>
+                ))}
+              </div>
+            )}
           </div>
-          <div style={{padding:'18px 24px', background:'#ffffff', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-            <span style={{color: '#64748b', fontSize:'13px', fontWeight:'600'}}>{t.metodo || 'Despesa'}</span>
-            <span style={{color: '#ef4444', fontSize:'13px', fontWeight: '600'}}>VENC: {formatarData(t.data_vencimento)}</span>
+          <div style={{ padding: '24px', background: '#ffffff' }}>
+            <div style={miniTagStyle}><CreditCard size={14}/> {t.metodo?.toUpperCase() || 'DESPESA'}</div>
+            <div style={{fontSize:'26px', color:'#0f172a', margin: '15px 0 5px 0', fontWeight: '600'}}>{formatarMoeda(t.valor)}</div>
+            <div style={{fontSize:'14px', color: '#64748b', textTransform:'uppercase', letterSpacing:'1px'}}>Venc: {formatarData(t.data_vencimento)}</div>
           </div>
          </div>
         ))}
