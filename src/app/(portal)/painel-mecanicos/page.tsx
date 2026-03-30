@@ -1,5 +1,8 @@
 'use client'
 import { useEffect, useState, useMemo } from 'react'
+import { useAuth } from '@/hooks/useAuth'
+import { usePermissoes } from '@/hooks/usePermissoes'
+import SemPermissao from '@/components/SemPermissao'
 import { supabase } from '@/lib/supabase'
 import {
   Users, Calendar, Wrench, Package, AlertTriangle, Check,
@@ -181,7 +184,14 @@ const TIPO_OCORRENCIA: Record<string, { label: string; color: string }> = {
 }
 
 // ─── Component ───────────────────────────────────────────────────────
-export default function PainelMecanicosPage() {
+export default function PainelMecanicosWrapper() {
+  const { userProfile } = useAuth()
+  const { temAcesso, loading: loadingPerm } = usePermissoes(userProfile?.id)
+  if (!loadingPerm && userProfile && !temAcesso('painel-mecanicos')) return <SemPermissao />
+  return <PainelMecanicosPage />
+}
+
+function PainelMecanicosPage() {
   const [tecnicos, setTecnicos] = useState<Tecnico[]>([])
   const [agendaSemana, setAgendaSemana] = useState<AgendaItem[]>([])
   const [execucoesRecentes, setExecucoesRecentes] = useState<Execucao[]>([])
@@ -990,6 +1000,9 @@ export default function PainelMecanicosPage() {
                       const isHoje = dateStr === hoje
                       const isPast = d < new Date(hoje)
                       const ordensNoDia = ordensDoTec.filter(o => o.Previsao_Execucao === dateStr)
+                      const agendaNoDia = agendaSemana.filter(a =>
+                        a.tecnico_nome === tec.tecnico_nome && a.data_agendada === dateStr
+                      )
                       const caminhosNoDia = caminhos.filter(c =>
                         c.tecnico_nome === tec.tecnico_nome &&
                         c.data_saida.split('T')[0] === dateStr
@@ -1050,7 +1063,34 @@ export default function PainelMecanicosPage() {
                               </div>
                             </div>
                           ))}
-                          {ordensNoDia.length === 0 && caminhosNoDia.length === 0 && (
+                          {agendaNoDia.filter(a => !a.id_ordem).map(ag => {
+                            const turnoColors: Record<string, string> = { manha: '#F59E0B', tarde: '#3B82F6', integral: '#10B981' }
+                            const turnoLabels: Record<string, string> = { manha: 'Manhã', tarde: 'Tarde', integral: 'Integral' }
+                            const turnoKey = ag.turno || 'manha'
+                            return (
+                              <div key={`ag-${ag.id}`} style={{
+                                background: '#FFFBEB', borderRadius: 6, padding: '6px 8px',
+                                borderLeft: `3px solid ${turnoColors[turnoKey] || '#F59E0B'}`,
+                              }}>
+                                <div style={{ fontWeight: 700, color: '#92400E', fontSize: 10, letterSpacing: '0.3px', marginBottom: 2 }}>MANUAL</div>
+                                {ag.cliente && (
+                                  <div style={{ fontWeight: 700, color: '#1E3A5F', fontSize: 12, marginBottom: 2 }}>
+                                    {ag.cliente.split(' ').slice(0, 2).join(' ')}
+                                  </div>
+                                )}
+                                {ag.descricao && (
+                                  <div style={{ color: '#374151', fontSize: 10, lineHeight: 1.3 }}>
+                                    {ag.descricao.substring(0, 80)}
+                                  </div>
+                                )}
+                                <div style={{ color: turnoColors[turnoKey] || '#F59E0B', fontWeight: 600, fontSize: 10, marginTop: 2 }}>
+                                  {turnoLabels[turnoKey] || turnoKey}
+                                  {ag.hora_inicio ? ` ${ag.hora_inicio}` : ''}
+                                </div>
+                              </div>
+                            )
+                          })}
+                          {ordensNoDia.length === 0 && caminhosNoDia.length === 0 && agendaNoDia.filter(a => !a.id_ordem).length === 0 && (
                             <div style={{ color: '#E5E7EB', fontSize: 10, textAlign: 'center', paddingTop: 30 }}>—</div>
                           )}
                         </div>

@@ -19,6 +19,7 @@ const MODULOS = [
   { id: 'tarefas', label: 'Tarefas', color: '#dc2626' },
   { id: 'atividades', label: 'Atividades', color: '#dc2626' },
   { id: 'mapa', label: 'Mapa Geral', color: '#b91c1c' },
+  { id: 'painel-mecanicos', label: 'Painel Mecânicos', color: '#dc2626' },
 ]
 
 const CATEGORIAS = ['Pós Vendas', 'Peças', 'Comercial', 'Financeiro']
@@ -28,6 +29,7 @@ interface Usuario {
   nome: string
   funcao: string
   avatar_url: string
+  email: string
 }
 
 interface Permissao {
@@ -57,7 +59,8 @@ export default function AdminPage() {
   useEffect(() => {
     if (!isAdmin) return
     const carregar = async () => {
-      const { data: users } = await supabase.from('financeiro_usu').select('id, nome, funcao, avatar_url').order('nome')
+      const { data: users, error: usersError } = await supabase.from('financeiro_usu').select('id, nome, funcao, avatar_url, email').order('nome')
+      console.log('[admin] users:', JSON.stringify(users?.[0]), 'error:', usersError)
       setUsuarios(users || [])
 
       const { data: perms } = await supabase.from('portal_permissoes').select('*')
@@ -129,7 +132,8 @@ export default function AdminPage() {
 
   const filteredUsuarios = usuarios.filter(u =>
     u.nome.toLowerCase().includes(search.toLowerCase()) ||
-    u.funcao?.toLowerCase().includes(search.toLowerCase())
+    u.funcao?.toLowerCase().includes(search.toLowerCase()) ||
+    u.email?.toLowerCase().includes(search.toLowerCase())
   )
 
   if (loadingPerm || loading) {
@@ -264,6 +268,7 @@ export default function AdminPage() {
                     {user.nome} {isMe && <span style={{ fontSize: '10px', color: '#a3a3a3' }}>(você)</span>}
                   </p>
                   <p style={{ fontSize: '11px', color: '#a3a3a3', fontWeight: '500' }}>{user.funcao}</p>
+                  {user.email && <p style={{ fontSize: '10px', color: '#b0b0b0', fontWeight: '400' }}>{user.email}</p>}
                 </div>
               </div>
 

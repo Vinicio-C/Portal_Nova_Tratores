@@ -29,7 +29,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
   return NextResponse.json({
     id: safeGet(row, "Id_Ordem"), nomeCliente: safeGet(row, "Os_Cliente"),
-    cpfCliente: safeGet(row, "Cnpj_Cliente"), enderecoCliente: safeGet(row, "Endereco_Cliente"),
+    cpfCliente: safeGet(row, "Cnpj_Cliente"), enderecoCliente: safeGet(row, "Endereco_Cliente"), cidadeCliente: safeGet(row, "Cidade_Cliente"),
     tecnicoResponsavel: safeGet(row, "Os_Tecnico"), tecnico2: safeGet(row, "Os_Tecnico2"),
     tipoServico: safeGet(row, "Tipo_Servico"), revisao: safeGet(row, "Revisao"),
     data: formatarDataBR(safeGet(row, "Data") as string),
@@ -46,6 +46,15 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     descontoKm: safeGet(row, "Desconto_KM"),
     previsaoExecucao: safeGet(row, "Previsao_Execucao") || "",
     previsaoFaturamento: safeGet(row, "Previsao_Faturamento") || "",
+    datasExecucaoExtras: await (async () => {
+      const { data: agItems } = await supabase
+        .from('agenda_tecnico')
+        .select('data_agendada')
+        .eq('id_ordem', idOs)
+        .order('data_agendada');
+      const principal = safeGet(row, "Previsao_Execucao") || "";
+      return (agItems || []).map(a => a.data_agendada).filter(d => d !== principal);
+    })(),
   });
 }
 
@@ -144,6 +153,55 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   // Sincroniza status do PPV vinculado
   await sincronizarStatusPPV(idOs, dados.status);
+
+  // Sincronizar agenda_tecnico com datas de execução
+  const todasDatas: string[] = [];
+  if (dados.previsaoExecucao) todasDatas.push(dados.previsaoExecucao);
+  if (Array.isArray(dados.datasExecucaoExtras)) {
+    dados.datasExecucaoExtras.forEach((d: string) => { if (d && !todasDatas.includes(d)) todasDatas.push(d); });
+  }
+
+  const tecNome = dados.tecnicoResponsavel || "";
+  if (tecNome && todasDatas.length > 0) {
+    // Buscar agenda existente para esta OS
+    const { data: agendaExistente } = await supabase
+      .from('agenda_tecnico')
+      .select('id, data_agendada')
+      .eq('id_ordem', idOs);
+
+    const existentes = (agendaExistente || []).map(a => a.data_agendada);
+
+    // Adicionar datas novas
+    const novas = todasDatas.filter(d => !existentes.includes(d));
+    if (novas.length > 0) {
+      await supabase.from('agenda_tecnico').insert(
+        novas.map(d => ({
+          tecnico_nome: tecNome,
+          id_ordem: idOs,
+          data_agendada: d,
+          turno: 'integral',
+          cliente: dados.nomeCliente || null,
+          endereco: dados.enderecoCliente || null,
+          status: 'agendado',
+        }))
+      );
+    }
+
+    // Remover datas que não estão mais na lista
+    const paraRemover = (agendaExistente || []).filter(a => !todasDatas.includes(a.data_agendada));
+    if (paraRemover.length > 0) {
+      await supabase.from('agenda_tecnico').delete().in('id', paraRemover.map(a => a.id));
+    }
+
+    // Atualizar técnico se mudou
+    const paraAtualizar = (agendaExistente || []).filter(a => todasDatas.includes(a.data_agendada));
+    if (paraAtualizar.length > 0) {
+      await supabase.from('agenda_tecnico').update({ tecnico_nome: tecNome, cliente: dados.nomeCliente || null, endereco: dados.enderecoCliente || null }).eq('id_ordem', idOs);
+    }
+  } else if (todasDatas.length === 0) {
+    // Se não tem mais datas, remover todas as entradas da agenda para esta OS
+    await supabase.from('agenda_tecnico').delete().eq('id_ordem', idOs);
+  }
 
   return NextResponse.json({ success: true });
 }

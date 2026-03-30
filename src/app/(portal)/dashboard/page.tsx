@@ -134,7 +134,7 @@ const systemToModulo: Record<string, string> = {
   'ppv': 'ppv',
   'proposta-comercial': 'propostas',
   'tarefas': 'tarefas',
-  'painel-mecanicos': 'pos',
+  'painel-mecanicos': 'painel-mecanicos',
   'mapa-geral': 'mapa',
 }
 

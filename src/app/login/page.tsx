@@ -77,7 +77,8 @@ export default function LoginPage() {
             id: data.user.id,
             nome,
             funcao,
-            avatar_url: avatarUrl
+            avatar_url: avatarUrl,
+            email
           }])
 
         if (dbError) {
@@ -96,8 +97,10 @@ export default function LoginPage() {
         }
       }
     } else {
-      const { error: authError } = await supabase.auth.signInWithPassword({ email, password })
-      if (!authError) {
+      const { data: loginData, error: authError } = await supabase.auth.signInWithPassword({ email, password })
+      if (!authError && loginData?.user) {
+        // Atualizar email no perfil (popula usuários antigos)
+        await supabase.from('financeiro_usu').update({ email }).eq('id', loginData.user.id)
         router.push('/dashboard')
       } else {
         setError('E-mail ou senha incorretos.')

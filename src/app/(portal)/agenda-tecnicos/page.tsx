@@ -66,6 +66,8 @@ export default function AgendaTecnicosPage() {
   const [formHoraInicio, setFormHoraInicio] = useState('')
   const [formHoraFim, setFormHoraFim] = useState('')
   const [formDescricao, setFormDescricao] = useState('')
+  const [formCliente, setFormCliente] = useState('')
+  const [formEndereco, setFormEndereco] = useState('')
   const [saving, setSaving] = useState(false)
 
   const semana = useMemo(() => {
@@ -125,6 +127,8 @@ export default function AgendaTecnicosPage() {
     setFormHoraInicio('')
     setFormHoraFim('')
     setFormDescricao('')
+    setFormCliente('')
+    setFormEndereco('')
     setEditItem(null)
     setShowForm(false)
   }
@@ -145,6 +149,8 @@ export default function AgendaTecnicosPage() {
     setFormHoraInicio(item.hora_inicio || '')
     setFormHoraFim(item.hora_fim || '')
     setFormDescricao(item.descricao || '')
+    setFormCliente(item.cliente || '')
+    setFormEndereco(item.endereco || '')
     setShowForm(true)
   }
 
@@ -155,7 +161,7 @@ export default function AgendaTecnicosPage() {
     }
     setSaving(true)
 
-    const osInfo = osList.find((o) => o.Id_Ordem === formOrdem)
+    const osInfo = formOrdem ? osList.find((o) => o.Id_Ordem === formOrdem) : null
     const payload = {
       tecnico_nome: formTecnico,
       id_ordem: formOrdem || null,
@@ -164,8 +170,8 @@ export default function AgendaTecnicosPage() {
       hora_inicio: formHoraInicio || null,
       hora_fim: formHoraFim || null,
       descricao: formDescricao || null,
-      endereco: osInfo?.Endereco_Cliente || null,
-      cliente: osInfo?.Os_Cliente || null,
+      endereco: osInfo ? osInfo.Endereco_Cliente : (formEndereco || null),
+      cliente: osInfo ? osInfo.Os_Cliente : (formCliente || null),
       status: 'agendado',
     }
 
@@ -318,11 +324,16 @@ export default function AgendaTecnicosPage() {
                             }}
                             onClick={() => openEditForm(item)}
                             >
-                              {item.id_ordem && (
+                              {item.id_ordem ? (
                                 <div style={{ fontWeight: 700, color: '#1E3A5F' }}>{item.id_ordem}</div>
+                              ) : (
+                                <div style={{ fontWeight: 700, color: '#D97706', fontSize: 10, letterSpacing: '0.3px' }}>MANUAL</div>
                               )}
                               {item.cliente && (
                                 <div style={{ color: '#374151', fontWeight: 500 }}>{item.cliente}</div>
+                              )}
+                              {!item.id_ordem && item.descricao && (
+                                <div style={{ color: '#6B7280', fontSize: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const, maxWidth: 120 }} title={item.descricao}>{item.descricao}</div>
                               )}
                               <div style={{ color: turno?.color, fontWeight: 600 }}>
                                 {turno?.label}
@@ -395,8 +406,8 @@ export default function AgendaTecnicosPage() {
 
               <div>
                 <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 4, display: 'block' }}>OS Vinculada</label>
-                <select value={formOrdem} onChange={(e) => setFormOrdem(e.target.value)} style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 13 }}>
-                  <option value="">Nenhuma</option>
+                <select value={formOrdem} onChange={(e) => { setFormOrdem(e.target.value); if (e.target.value) { setFormCliente(''); setFormEndereco('') } }} style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 13 }}>
+                  <option value="">Nenhuma (serviço manual)</option>
                   {osList.map((os) => (
                     <option key={os.Id_Ordem} value={os.Id_Ordem}>
                       {os.Id_Ordem} - {os.Os_Cliente}
@@ -404,6 +415,21 @@ export default function AgendaTecnicosPage() {
                   ))}
                 </select>
               </div>
+
+              {/* Campos manuais quando não há OS vinculada */}
+              {!formOrdem && (
+                <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 10, padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#D97706', letterSpacing: '0.5px', textTransform: 'uppercase' as const }}>Serviço Manual</div>
+                  <div>
+                    <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 4, display: 'block' }}>Cliente</label>
+                    <input type="text" value={formCliente} onChange={(e) => setFormCliente(e.target.value)} placeholder="Nome do cliente..." style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 13, boxSizing: 'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 4, display: 'block' }}>Endereço</label>
+                    <input type="text" value={formEndereco} onChange={(e) => setFormEndereco(e.target.value)} placeholder="Endereço do serviço..." style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 13, boxSizing: 'border-box' }} />
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 4, display: 'block' }}>Data *</label>

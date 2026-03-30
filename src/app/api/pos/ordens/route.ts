@@ -312,6 +312,26 @@ export async function POST(req: NextRequest) {
     await registrarLog(newId, `PPV ${ppvGerado} gerado automaticamente`, "Orçamento", null, userNameLog);
   }
 
+  // Criar entradas na agenda_tecnico para cada data de execução
+  const todasDatas: string[] = [];
+  if (dados.previsaoExecucao) todasDatas.push(dados.previsaoExecucao);
+  if (Array.isArray(dados.datasExecucaoExtras)) {
+    dados.datasExecucaoExtras.forEach((d: string) => { if (d && !todasDatas.includes(d)) todasDatas.push(d); });
+  }
+  if (dados.tecnicoResponsavel && todasDatas.length > 0) {
+    await supabase.from('agenda_tecnico').insert(
+      todasDatas.map((d: string) => ({
+        tecnico_nome: dados.tecnicoResponsavel,
+        id_ordem: newId,
+        data_agendada: d,
+        turno: 'integral',
+        cliente: dados.nomeCliente || null,
+        endereco: dados.enderecoCliente || null,
+        status: 'agendado',
+      }))
+    );
+  }
+
   const ordens = await getOrdensParaKanban();
   return NextResponse.json({ success: true, ordensAtualizadas: ordens, novaOsId: newId, ppvGerado });
 }

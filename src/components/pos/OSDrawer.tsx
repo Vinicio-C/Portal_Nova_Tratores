@@ -72,6 +72,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   const [motivoCancel, setMotivoCancel] = useState("");
   const [relatorioTecnico, setRelatorioTecnico] = useState("");
   const [previsaoExecucao, setPrevisaoExecucao] = useState("");
+  const [datasExecucao, setDatasExecucao] = useState<string[]>([]);
   const [previsaoFaturamento, setPrevisaoFaturamento] = useState("");
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [totalPecas, setTotalPecas] = useState(0);
@@ -89,6 +90,19 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   const [lembretes, setLembretes] = useState<Array<{ id: number; lembrete: string }>>([]);
   const [editingLembreteId, setEditingLembreteId] = useState<number | null>(null);
   const [editingLembreteText, setEditingLembreteText] = useState("");
+  const [estimativa, setEstimativa] = useState<{
+    ida: { distancia_km: number; tempo_min: number };
+    volta: { distancia_km: number; tempo_min: number };
+    servico: { horas: number; tempo_min: number };
+    total: { tempo_min: number; tempo_horas: number; distancia_total_km: number };
+    enderecoUsado: string;
+    fonte?: string;
+    enderecosDisponiveis?: { label: string; fonte: string; endereco: string }[];
+  } | null>(null);
+  const [loadingEstimativa, setLoadingEstimativa] = useState(false);
+  const [erroEstimativa, setErroEstimativa] = useState("");
+  const [enderecoEstimativa, setEnderecoEstimativa] = useState("");
+  const [enderecosDisponiveis, setEnderecosDisponiveis] = useState<{ label: string; fonte: string; endereco: string }[]>([]);
 
   // ── Derived values (useMemo) ──
   const subtotalHoras = qtdHoras * VALOR_HORA;
@@ -106,6 +120,55 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   );
 
   const totalDescontos = descHoraValor + descKmValor + descValor;
+
+  // Auto-calcular estimativa quando clienteInfo e qtdHoras mudam
+  const estimativaTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    // Limpar timer anterior
+    if (estimativaTimerRef.current) clearTimeout(estimativaTimerRef.current);
+
+    if (!clienteInfo?.cpf && !clienteInfo?.endereco) {
+      setEstimativa(null);
+      return;
+    }
+    if (!qtdHoras || qtdHoras <= 0) {
+      setEstimativa(null);
+      return;
+    }
+
+    setLoadingEstimativa(true);
+    // Debounce de 600ms para não fazer chamadas demais
+    estimativaTimerRef.current = setTimeout(async () => {
+      setErroEstimativa("");
+      try {
+        const res = await fetch("/api/pos/estimativa", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            cnpj: clienteInfo?.cpf || "",
+            endereco: clienteInfo?.endereco || "",
+            cidade: (clienteInfo as unknown as Record<string, unknown>)?.cidade || "",
+            qtdHoras,
+          }),
+        });
+        const data = await res.json();
+        if (data.enderecosDisponiveis) setEnderecosDisponiveis(data.enderecosDisponiveis);
+        if (!res.ok || data.erro) {
+          setErroEstimativa(data.erro || "Erro ao calcular estimativa");
+          setEstimativa(null);
+        } else {
+          setEstimativa(data);
+          setEnderecoEstimativa(data.enderecoUsado || "");
+        }
+      } catch {
+        setErroEstimativa("Erro de conexão");
+        setEstimativa(null);
+      }
+      setLoadingEstimativa(false);
+    }, 600);
+
+    return () => { if (estimativaTimerRef.current) clearTimeout(estimativaTimerRef.current); };
+  }, [clienteInfo, qtdHoras]);
 
   const filteredClientes = useMemo(() => {
     if (!clienteFilter) return [];
@@ -215,7 +278,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
       tipoServico, revisao, projeto, servicoSolicitado: servSolicitado,
       qtdHoras, qtdKm, ppv, status: mode === "create" ? "Orçamento" : status,
       ordemOmie, motivoCancelamento: motivoCancel, descontoValor: descValor, descontoHora: descHoraValor, descontoKm: descKmValor,
-      relatorioTecnico, previsaoExecucao, previsaoFaturamento,
+      relatorioTecnico, previsaoExecucao, datasExecucaoExtras: datasExecucao.filter(d => d), previsaoFaturamento,
       gerarPPV: mode === "create" && tipoServico === "Revisão" && gerarPPV,
       userName,
     };
@@ -240,7 +303,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
     }
   }, [mode, osId, clienteChave, clienteInfo, tecnico1, tecnico2, tipoServico, revisao, projeto,
       servSolicitado, qtdHoras, qtdKm, ppv, status, ordemOmie, motivoCancel, descValor,
-      descHoraValor, descKmValor, relatorioTecnico, previsaoExecucao, previsaoFaturamento,
+      descHoraValor, descKmValor, relatorioTecnico, previsaoExecucao, datasExecucao, previsaoFaturamento,
       gerarPPV, onClose, onSaved]);
 
   // ── Reset form to defaults ──
@@ -250,7 +313,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
     setProjeto(""); setRevisao(""); setServSolicitado(TEXT_TEMPLATE);
     setPpv(""); setQtdHoras(1); setQtdKm(0); setDescPorc(0); setDescValor(0); setDescHoraValor(0); setDescKmValor(0);
     setOrdemOmie(""); setMotivoCancel(""); setRelatorioTecnico("");
-    setPrevisaoExecucao(""); setPrevisaoFaturamento("");
+    setPrevisaoExecucao(""); setDatasExecucao([]); setPrevisaoFaturamento("");
+    setEstimativa(null); setErroEstimativa(""); setLoadingEstimativa(false); setEnderecoEstimativa(""); setEnderecosDisponiveis([]);
     setProdutos([]); setTotalPecas(0); setShowLogs(false); setRequisicoes([]);
     setGerarPPV(false); setShowDescontos(false); setLoadingData(false);
     setLembretes([]); setEditingLembreteId(null);
@@ -278,7 +342,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
         .then((r) => r.json())
         .then((d) => {
           if (!d || ac.signal.aborted) return;
-          setClienteInfo({ nome: d.nomeCliente, cpf: d.cpfCliente || "", email: "", telefone: "", endereco: d.enderecoCliente || "" });
+          setClienteInfo({ nome: d.nomeCliente, cpf: d.cpfCliente || "", email: "", telefone: "", endereco: d.enderecoCliente || "", cidade: d.cidadeCliente || "" });
           setStatus(d.status || "Orçamento");
           setTecnico1(d.tecnicoResponsavel || ""); setTecnico2(d.tecnico2 || "");
           setTipoServico(d.tipoServico || "Manutenção"); setRevisao(d.revisao || "");
@@ -296,6 +360,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
           setOrdemOmie(d.ordemOmie || ""); setMotivoCancel(d.motivoCancelamento || "");
           setRelatorioTecnico(d.relatorioTecnico || "");
           setPrevisaoExecucao(d.previsaoExecucao || "");
+          setDatasExecucao(d.datasExecucaoExtras || []);
           setPrevisaoFaturamento(d.previsaoFaturamento || "");
           setRequisicoes(d.infoRequisicoes || []);
           setShowDescontos(dv > 0 || dh > 0 || dk > 0);
@@ -419,8 +484,14 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                     )}
                     {clienteInfo && !clienteFilter && (
                       <div className="os-client-badge">
-                        <i className="fas fa-check-circle" /> {clienteInfo.nome}
-                        {clienteInfo.cpf && <span style={S_CLIENT_BADGE_CPF}>({clienteInfo.cpf})</span>}
+                        <div><i className="fas fa-check-circle" /> {clienteInfo.nome}
+                        {clienteInfo.cpf && <span style={S_CLIENT_BADGE_CPF}>({clienteInfo.cpf})</span>}</div>
+                        {(clienteInfo.endereco || clienteInfo.cidade) && (
+                          <div style={{ fontSize: 11, color: '#7A6E5D', marginTop: 4 }}>
+                            <i className="fas fa-map-marker-alt" style={{ marginRight: 4 }} />
+                            {[clienteInfo.endereco, clienteInfo.cidade].filter(Boolean).join(" - ")}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -556,17 +627,56 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                   {/* ── Previsões ── */}
                   <div className="os-card">
                     <div className="os-card-title"><i className="fas fa-calendar-alt" /> Previsões</div>
-                    <div className="os-row">
-                      <div style={S_FLEX1}>
-                        <label>Previsão de Execução</label>
-                        <input type="date" value={previsaoExecucao} onChange={(e) => setPrevisaoExecucao(e.target.value)} style={S_MB0} />
+                    <div style={{ marginBottom: 12 }}>
+                      <label>Dias de Execução</label>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {/* Primeiro dia (principal) */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <input type="date" value={previsaoExecucao} onChange={(e) => setPrevisaoExecucao(e.target.value)} style={{ flex: 1, marginBottom: 0 }} />
+                          <span style={{ fontSize: 10, color: '#92400E', fontWeight: 700, background: '#FEF3C7', padding: '2px 8px', borderRadius: 4, whiteSpace: 'nowrap' }}>DIA 1</span>
+                        </div>
+                        {/* Dias extras */}
+                        {datasExecucao.map((data, i) => (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <input
+                              type="date"
+                              value={data}
+                              onChange={(e) => {
+                                const novas = [...datasExecucao];
+                                novas[i] = e.target.value;
+                                setDatasExecucao(novas);
+                              }}
+                              style={{ flex: 1, marginBottom: 0 }}
+                            />
+                            <span style={{ fontSize: 10, color: '#1E3A5F', fontWeight: 700, background: '#DBEAFE', padding: '2px 8px', borderRadius: 4, whiteSpace: 'nowrap' }}>DIA {i + 2}</span>
+                            <button
+                              type="button"
+                              onClick={() => setDatasExecucao(datasExecucao.filter((_, j) => j !== i))}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#EF4444', fontSize: 16, padding: '0 4px', lineHeight: 1 }}
+                              title="Remover dia"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                        {/* Botão adicionar */}
+                        <button
+                          type="button"
+                          onClick={() => setDatasExecucao([...datasExecucao, ''])}
+                          style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#F0F9FF', border: '1px dashed #93C5FD', borderRadius: 6, padding: '6px 12px', cursor: 'pointer', color: '#2563EB', fontSize: 12, fontWeight: 600, width: 'fit-content' }}
+                        >
+                          <i className="fas fa-plus" style={{ fontSize: 10 }} /> Adicionar dia de execução
+                        </button>
                       </div>
+                    </div>
+                    <div className="os-row">
                       <div style={S_FLEX1}>
                         <label>Previsão de Faturamento</label>
                         <input type="date" value={previsaoFaturamento} onChange={(e) => setPrevisaoFaturamento(e.target.value)} style={S_MB0} />
                       </div>
                     </div>
                   </div>
+
 
                   {/* ── Descrição ── */}
                   <div className="os-card">
@@ -624,6 +734,125 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                         <div className="os-field-hint">x R$ {VALOR_KM.toFixed(2)} = R$ {subtotalKm.toFixed(2)}</div>
                       </div>
                     </div>
+
+                    {/* Estimativa de tempo (automática) */}
+                    {loadingEstimativa && (
+                      <div style={{ fontSize: 12, color: '#6B7280', padding: '8px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <i className="fas fa-spinner fa-spin" style={{ fontSize: 11 }} /> Calculando estimativa...
+                      </div>
+                    )}
+                    {(estimativa || erroEstimativa || enderecoEstimativa) && !loadingEstimativa && (
+                      <div style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 8, padding: 12, marginTop: 8 }}>
+                        <div style={{ fontSize: 10, color: '#6B7280', marginBottom: 6, textTransform: 'uppercase' as const, fontWeight: 600, letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <i className="fas fa-route" style={{ marginRight: 2 }} /> Estimativa de Tempo
+                          {estimativa?.fonte && (
+                            <span style={{
+                              fontSize: 9, padding: '2px 6px', borderRadius: 4, fontWeight: 700,
+                              background: estimativa.fonte === 'Omie' ? '#DBEAFE' : estimativa.fonte === 'Manual' ? '#FEF3C7' : '#E5E7EB',
+                              color: estimativa.fonte === 'Omie' ? '#1E40AF' : estimativa.fonte === 'Manual' ? '#92400E' : '#374151',
+                            }}>
+                              {estimativa.fonte === 'Omie' ? 'ENDEREÇO OMIE' : estimativa.fonte === 'Manual' ? 'CLIENTE MANUAL' : 'ENDEREÇO DA OS'}
+                            </span>
+                          )}
+                        </div>
+                        {/* Dropdown de endereços disponíveis */}
+                        {enderecosDisponiveis.length > 1 && (
+                          <div style={{ marginBottom: 6 }}>
+                            <select
+                              value={enderecoEstimativa}
+                              onChange={(e) => {
+                                setEnderecoEstimativa(e.target.value);
+                                // Recalcular automaticamente ao trocar
+                                setLoadingEstimativa(true); setErroEstimativa("");
+                                fetch("/api/pos/estimativa", {
+                                  method: "POST", headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ cnpj: clienteInfo?.cpf || "", endereco: clienteInfo?.endereco || "", cidade: (clienteInfo as unknown as Record<string, unknown>)?.cidade || "", qtdHoras, enderecoManual: e.target.value }),
+                                }).then(r => r.json()).then(data => {
+                                  if (data.enderecosDisponiveis) setEnderecosDisponiveis(data.enderecosDisponiveis);
+                                  if (data.erro) { setErroEstimativa(data.erro); setEstimativa(null); }
+                                  else { setEstimativa(data); setEnderecoEstimativa(data.enderecoUsado || e.target.value); }
+                                  setLoadingEstimativa(false);
+                                }).catch(() => { setErroEstimativa("Erro de conexão"); setLoadingEstimativa(false); });
+                              }}
+                              style={{ width: '100%', fontSize: 11, padding: '5px 8px', border: '1px solid #BAE6FD', borderRadius: 6, background: '#fff', marginBottom: 0, cursor: 'pointer' }}
+                            >
+                              {enderecosDisponiveis.map((e, i) => (
+                                <option key={i} value={e.endereco}>
+                                  [{e.label}] {e.endereco}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+                        {/* Endereço editável */}
+                        <div style={{ display: 'flex', gap: 6, marginBottom: 8, alignItems: 'center' }}>
+                          <i className="fas fa-map-marker-alt" style={{ color: '#6B7280', fontSize: 11, flexShrink: 0 }} />
+                          <input
+                            type="text"
+                            value={enderecoEstimativa}
+                            onChange={(e) => setEnderecoEstimativa(e.target.value)}
+                            placeholder="Endereço para cálculo..."
+                            style={{ flex: 1, fontSize: 11, padding: '5px 8px', border: '1px solid #BAE6FD', borderRadius: 6, background: '#fff', marginBottom: 0 }}
+                          />
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (!enderecoEstimativa) return;
+                              setLoadingEstimativa(true); setErroEstimativa("");
+                              try {
+                                const res = await fetch("/api/pos/estimativa", {
+                                  method: "POST", headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ cnpj: clienteInfo?.cpf || "", endereco: clienteInfo?.endereco || "", cidade: (clienteInfo as unknown as Record<string, unknown>)?.cidade || "", qtdHoras, enderecoManual: enderecoEstimativa }),
+                                });
+                                const data = await res.json();
+                                if (data.enderecosDisponiveis) setEnderecosDisponiveis(data.enderecosDisponiveis);
+                                if (!res.ok || data.erro) { setErroEstimativa(data.erro || "Erro"); setEstimativa(null); }
+                                else { setEstimativa(data); setEnderecoEstimativa(data.enderecoUsado || enderecoEstimativa); }
+                              } catch { setErroEstimativa("Erro de conexão"); }
+                              setLoadingEstimativa(false);
+                            }}
+                            style={{ fontSize: 10, padding: '5px 10px', background: '#1E3A5F', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 700, whiteSpace: 'nowrap' }}
+                          >
+                            <i className="fas fa-sync-alt" style={{ marginRight: 3 }} />Recalcular
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!enderecoEstimativa) return;
+                              setClienteInfo(prev => prev ? { ...prev, endereco: enderecoEstimativa } : prev);
+                            }}
+                            style={{ fontSize: 10, padding: '5px 10px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 700, whiteSpace: 'nowrap' }}
+                          >
+                            <i className="fas fa-thumbtack" style={{ marginRight: 3 }} />Fixar
+                          </button>
+                        </div>
+                        {erroEstimativa && <div style={{ fontSize: 11, color: '#EF4444', marginBottom: 8 }}>{erroEstimativa}</div>}
+                        {estimativa && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
+                          <div style={{ textAlign: 'center' }}>
+                            <div style={{ fontSize: 10, color: '#6B7280' }}>Ida</div>
+                            <div style={{ fontSize: 15, fontWeight: 700, color: '#1E3A5F' }}>{estimativa.ida.tempo_min} min</div>
+                            <div style={{ fontSize: 10, color: '#9CA3AF' }}>{estimativa.ida.distancia_km} km</div>
+                          </div>
+                          <div style={{ textAlign: 'center' }}>
+                            <div style={{ fontSize: 10, color: '#6B7280' }}>Serviço</div>
+                            <div style={{ fontSize: 15, fontWeight: 700, color: '#F59E0B' }}>{estimativa.servico.horas}h</div>
+                            <div style={{ fontSize: 10, color: '#9CA3AF' }}>{estimativa.servico.tempo_min} min</div>
+                          </div>
+                          <div style={{ textAlign: 'center' }}>
+                            <div style={{ fontSize: 10, color: '#6B7280' }}>Volta</div>
+                            <div style={{ fontSize: 15, fontWeight: 700, color: '#1E3A5F' }}>{estimativa.volta.tempo_min} min</div>
+                            <div style={{ fontSize: 10, color: '#9CA3AF' }}>{estimativa.volta.distancia_km} km</div>
+                          </div>
+                          <div style={{ textAlign: 'center', background: '#1E3A5F', borderRadius: 6, padding: '6px 4px', color: '#fff' }}>
+                            <div style={{ fontSize: 10, opacity: 0.8 }}>Total Fora</div>
+                            <div style={{ fontSize: 15, fontWeight: 700 }}>{estimativa.total.tempo_horas}h</div>
+                            <div style={{ fontSize: 10, opacity: 0.7 }}>{estimativa.total.distancia_total_km} km</div>
+                          </div>
+                        </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* Descontos (colapsável) */}
                     <div className="os-discount-section">

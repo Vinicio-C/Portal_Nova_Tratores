@@ -2,11 +2,12 @@
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
+import { usePermissoes } from '@/hooks/usePermissoes'
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import {
   LayoutDashboard, Columns3, BarChart3, History, Receipt, Users,
-  PlusCircle, FileText, DollarSign, UserCog, AlertTriangle
+  PlusCircle, FileText, DollarSign, UserCog, AlertTriangle, Activity
 } from 'lucide-react'
 
 const ICONS = {
@@ -17,6 +18,7 @@ const ICONS = {
   receber: DollarSign,
   rh: Users,
   vencidos: AlertTriangle,
+  logs: Activity,
 }
 
 const LINKS_FINANCEIRO = [
@@ -41,10 +43,14 @@ const LINKS_POSVENDAS = [
 export default function FinanceiroNav({ children }) {
   const pathname = usePathname()
   const { userProfile } = useAuth()
+  const { isAdmin } = usePermissoes(userProfile?.id)
   const [vencidosCount, setVencidosCount] = useState(0)
 
   const isFinanceiro = userProfile?.funcao === 'Financeiro'
-  const links = isFinanceiro ? LINKS_FINANCEIRO : LINKS_POSVENDAS
+  const baseLinks = isFinanceiro ? LINKS_FINANCEIRO : LINKS_POSVENDAS
+  const links = isAdmin
+    ? [...baseLinks, { label: 'Logs', href: '/financeiro/logs', icon: 'logs' }]
+    : baseLinks
 
   // Contar vencidos para badge
   useEffect(() => {
