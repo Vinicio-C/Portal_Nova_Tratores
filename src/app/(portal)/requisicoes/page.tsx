@@ -122,16 +122,19 @@ function RequisicoesPageInner() {
   const refreshSilencioso = useCallback(() => carregarDados(true), [carregarDados]);
   useRefreshOnFocus(refreshSilencioso);
 
-  // Notificar admins via portal_notificacoes (bell icon)
-  const notificarAdmins = async (tipo: string, titulo: string, descricao?: string, link?: string) => {
+  // Notificar usuários com acesso a requisições via portal_notificacoes (bell icon)
+  const notificarUsuariosReq = async (tipo: string, titulo: string, descricao?: string, link?: string) => {
     try {
-      const { data: admins } = await supabase
+      const { data: permissoes } = await supabase
         .from('portal_permissoes')
-        .select('user_id')
-        .eq('is_admin', true);
-      if (!admins || admins.length === 0) return;
+        .select('user_id, is_admin, modulos_permitidos');
+      if (!permissoes || permissoes.length === 0) return;
+      const usuariosComAcesso = permissoes.filter(
+        (p: any) => p.is_admin || (p.modulos_permitidos && p.modulos_permitidos.includes('requisicoes'))
+      );
+      if (usuariosComAcesso.length === 0) return;
       await supabase.from('portal_notificacoes').insert(
-        admins.map((a: { user_id: string }) => ({
+        usuariosComAcesso.map((a: { user_id: string }) => ({
           user_id: a.user_id,
           tipo,
           titulo,
@@ -139,7 +142,7 @@ function RequisicoesPageInner() {
           link: link || null,
         }))
       );
-    } catch (err) { console.error('[Requisições] Erro ao notificar admins:', err); }
+    } catch (err) { console.error('[Requisições] Erro ao notificar usuários:', err); }
   };
 
   useEffect(() => {
@@ -162,7 +165,7 @@ function RequisicoesPageInner() {
         setContadorNotif(prev => prev + 1);
 
         // Criar notificação no bell icon para admins
-        notificarAdmins(
+        notificarUsuariosReq(
           'requisicao',
           'Nova Solicitação de Requisição',
           nova.Material_Serv_Solicitado || 'Solicitação via APP',
@@ -179,12 +182,25 @@ function RequisicoesPageInner() {
           for (const delay of delays) {
             await new Promise(r => setTimeout(r, delay));
             const safeId = String(nova.IdReq).replace(/%/g, '');
-            const { data } = await supabase
+            // Busca por [APPSHEET_ID:...] (legado)
+            const { data: dataLegado } = await supabase
               .from('Requisicao')
               .select('*')
               .ilike('obs', `%[APPSHEET_ID:${safeId}]%`)
               .maybeSingle();
-            if (data?.id) { reqData = data; break; }
+            if (dataLegado?.id) { reqData = dataLegado; break; }
+            // Busca pelo titulo + solicitante (app técnico)
+            if (nova.Material_Serv_Solicitado && nova.ReqSolicitante) {
+              const { data: dataApp } = await supabase
+                .from('Requisicao')
+                .select('*')
+                .eq('titulo', nova.Material_Serv_Solicitado.toUpperCase())
+                .eq('solicitante', nova.ReqSolicitante)
+                .order('id', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+              if (dataApp?.id) { reqData = dataApp; break; }
+            }
           }
 
           let nomeExibicao = nova.ReqEmail || "Técnico";
@@ -233,7 +249,7 @@ function RequisicoesPageInner() {
         setContadorNotif(prev => prev + 1);
 
         // Criar notificação no bell icon para admins
-        notificarAdmins(
+        notificarUsuariosReq(
           'requisicao',
           'Requisição Atualizada pelo Técnico',
           `Requisição #${novo.ReqREF} foi atualizada`,

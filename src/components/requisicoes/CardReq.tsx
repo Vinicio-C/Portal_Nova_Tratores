@@ -13,7 +13,7 @@ import {
 
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxyIatVqhjdeBeo4PYNWr992vCsPpvEEjOxabWB7mz5JRJ7BroxnvR8CRIcXIgTfLSm/exec';
 const DEPARTAMENTOS = ["Trator-Loja", "Trator-Cliente", "Oficina", "Comercial"];
-const TIPOS_REQ = ["Peça", "Alimentação", "Ferramenta", "Serviço de Terceiros", "Almoxarifado", "Frota-Veículos", "Insumo Infra"];
+const TIPOS_REQ = ["Peças", "Alimentação", "Ferramenta", "Serviço de Terceiros", "Almoxarifado", "Frota-Veiculos", "Insumo Infra", "Veicular Abastecimento", "Veicular Manutenção", "Trator Abastecimento", "Quadri Abastecimento"];
 
 type Aba = 'dados' | 'financeiro' | 'anexos';
 
@@ -30,6 +30,10 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
   const [fornecedoresVisiveis, setFornecedoresVisiveis] = useState(1);
   const [userEmail, setUserEmail] = useState('');
   const [uploading, setUploading] = useState<string | null>(null);
+  const [ordensAbertas, setOrdensAbertas] = useState<any[]>([]);
+  const [osBusca, setOsBusca] = useState('');
+  const [osDropdownOpen, setOsDropdownOpen] = useState(false);
+  const osDropdownRef = useRef<HTMLDivElement>(null);
 
   const fornecedoresBanco = dadosCompartilhados?.fornecedores || [];
   const usuariosBanco = dadosCompartilhados?.usuarios || [];
@@ -60,6 +64,24 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
       if (!error && user?.email) setUserEmail(user.email);
     }).catch(() => {});
   }, [modalAberto, userEmail]);
+
+  // Busca ordens abertas para dropdown de OS
+  useEffect(() => {
+    if (!modalAberto || ordensAbertas.length > 0) return;
+    supabase.from('Ordem_Servico').select('Id_Ordem, Os_Cliente, Os_Tecnico, Status')
+      .not('Status', 'in', '("Concluída","Cancelada")')
+      .order('Id_Ordem', { ascending: false })
+      .then(({ data }) => { if (data) setOrdensAbertas(data); });
+  }, [modalAberto, ordensAbertas.length]);
+
+  // Fechar dropdown OS ao clicar fora
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (osDropdownRef.current && !osDropdownRef.current.contains(e.target as Node)) setOsDropdownOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   // Sincroniza quando req muda externamente (realtime)
   useEffect(() => {
@@ -346,9 +368,72 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                           <label className={labelBase}><User size={11}/> Cliente</label>
                           <input value={localData.cliente || ''} onChange={e => setField('cliente', e.target.value)} onBlur={e => persist('cliente', e.target.value.toUpperCase())} className={inputBase} />
                         </div>
-                        <div>
+                        <div ref={osDropdownRef} className="relative">
                           <label className={labelBase}><ClipboardList size={11}/> Ordem de Serviço</label>
-                          <input value={localData.ordem_servico || ''} onChange={e => setField('ordem_servico', e.target.value)} onBlur={e => persist('ordem_servico', e.target.value.toUpperCase())} className={inputBase} />
+                          <div
+                            className={`${inputBase} cursor-pointer flex items-center justify-between`}
+                            onClick={() => setOsDropdownOpen(!osDropdownOpen)}
+                          >
+                            <span className={localData.ordem_servico ? 'text-zinc-900' : 'text-zinc-400'}>
+                              {localData.ordem_servico
+                                ? `OS ${localData.ordem_servico} - ${ordensAbertas.find(o => String(o.Id_Ordem) === String(localData.ordem_servico))?.Os_Cliente || ''}`
+                                : 'Selecione a O.S...'}
+                            </span>
+                            <svg className="w-3.5 h-3.5 text-zinc-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                          </div>
+                          {osDropdownOpen && (
+                            <div className="absolute z-[70] mt-1 w-full bg-white border border-zinc-200 rounded-xl shadow-xl max-h-56 overflow-auto">
+                              <div className="sticky top-0 bg-white p-2 border-b border-zinc-100">
+                                <input
+                                  autoFocus
+                                  placeholder="Buscar OS, cliente ou técnico..."
+                                  value={osBusca}
+                                  onChange={e => setOsBusca(e.target.value)}
+                                  className="w-full px-3 py-2 rounded-lg border border-zinc-200 text-xs outline-none focus:border-red-400"
+                                />
+                              </div>
+                              {localData.ordem_servico && (
+                                <button
+                                  type="button"
+                                  onClick={() => { persist('ordem_servico', null); setOsDropdownOpen(false); setOsBusca(''); }}
+                                  className="w-full px-4 py-2 text-left text-xs text-red-500 hover:bg-red-50 border-b border-zinc-100"
+                                >
+                                  ✕ Remover vínculo
+                                </button>
+                              )}
+                              {ordensAbertas
+                                .filter(o => {
+                                  if (!osBusca.trim()) return true;
+                                  const q = osBusca.toLowerCase();
+                                  return String(o.Id_Ordem).toLowerCase().includes(q) || (o.Os_Cliente || '').toLowerCase().includes(q) || (o.Os_Tecnico || '').toLowerCase().includes(q);
+                                })
+                                .map(o => (
+                                  <button
+                                    type="button"
+                                    key={o.Id_Ordem}
+                                    onClick={() => {
+                                      persist('ordem_servico', String(o.Id_Ordem));
+                                      if (o.Os_Cliente) persist('cliente', o.Os_Cliente);
+                                      setOsDropdownOpen(false);
+                                      setOsBusca('');
+                                    }}
+                                    className={`w-full px-4 py-2.5 text-left hover:bg-zinc-50 border-b border-zinc-50 ${String(localData.ordem_servico) === String(o.Id_Ordem) ? 'bg-red-50' : ''}`}
+                                  >
+                                    <span className="font-bold text-xs text-zinc-800">OS {o.Id_Ordem}</span>
+                                    <span className="text-[11px] text-zinc-500 ml-2">{o.Os_Cliente}</span>
+                                    <span className="text-[11px] text-zinc-400 ml-1">({o.Os_Tecnico})</span>
+                                  </button>
+                                ))
+                              }
+                              {ordensAbertas.filter(o => {
+                                if (!osBusca.trim()) return true;
+                                const q = osBusca.toLowerCase();
+                                return String(o.Id_Ordem).toLowerCase().includes(q) || (o.Os_Cliente || '').toLowerCase().includes(q) || (o.Os_Tecnico || '').toLowerCase().includes(q);
+                              }).length === 0 && (
+                                <p className="px-4 py-3 text-xs text-zinc-400 text-center">Nenhuma O.S. encontrada</p>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                       <div className="grid grid-cols-2 gap-3">

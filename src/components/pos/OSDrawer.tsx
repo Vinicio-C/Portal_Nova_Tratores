@@ -82,11 +82,15 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   const [showRevModal, setShowRevModal] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
   const [logRefreshKey, setLogRefreshKey] = useState(0);
-  const [requisicoes, setRequisicoes] = useState<Array<{ id: string; atualizada: boolean; material: string }>>([]);
+  const [requisicoes, setRequisicoes] = useState<Array<{ id: string; atualizada: boolean; valor: number; material: string; solicitante: string }>>([]);
+  const [desvinculandoReq, setDesvinculandoReq] = useState<string | null>(null);
+  const [justificativaDesvinc, setJustificativaDesvinc] = useState("");
   const [clienteFilter, setClienteFilter] = useState("");
   const [gerarPPV, setGerarPPV] = useState(false);
   const [enviandoOmie, setEnviandoOmie] = useState(false);
   const [showDescontos, setShowDescontos] = useState(false);
+  const [dadosTecnico, setDadosTecnico] = useState<any>(null);
+  const [fotoExpandida, setFotoExpandida] = useState<string | null>(null);
   const [lembretes, setLembretes] = useState<Array<{ id: number; lembrete: string }>>([]);
   const [editingLembreteId, setEditingLembreteId] = useState<number | null>(null);
   const [editingLembreteText, setEditingLembreteText] = useState("");
@@ -109,10 +113,12 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   const subtotalKm = qtdKm * VALOR_KM;
   const subtotalBruto = subtotalHoras + subtotalKm + totalPecas;
 
+  const totalRequisicoes = useMemo(() => requisicoes.reduce((s, r) => s + (r.valor || 0), 0), [requisicoes]);
+
   const total = useMemo(() => {
-    const sub = (subtotalHoras - descHoraValor) + (subtotalKm - descKmValor) + totalPecas;
+    const sub = (subtotalHoras - descHoraValor) + (subtotalKm - descKmValor) + totalPecas + totalRequisicoes;
     return Math.max(0, sub - descValor);
-  }, [subtotalHoras, subtotalKm, totalPecas, descValor, descHoraValor, descKmValor]);
+  }, [subtotalHoras, subtotalKm, totalPecas, totalRequisicoes, descValor, descHoraValor, descKmValor]);
 
   const bombaAlerta = useMemo(
     () => tipoServico === "Revisão" && !!revisao && BOMBA_HORAS.some((h) => revisao.includes(h)),
@@ -363,6 +369,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
           setDatasExecucao(d.datasExecucaoExtras || []);
           setPrevisaoFaturamento(d.previsaoFaturamento || "");
           setRequisicoes(d.infoRequisicoes || []);
+          setDadosTecnico(d.dadosTecnico || null);
           setShowDescontos(dv > 0 || dh > 0 || dk > 0);
           if (d.ppv) loadPPV(d.ppv);
           if (d.nomeCliente) {
@@ -562,6 +569,220 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                     </div>
                   )}
 
+                  {/* ── Relatório Técnico ── */}
+                  {mode === "edit" && relatorioTecnico && (
+                    <div className="os-card">
+                      <div className="os-card-title"><i className="fas fa-file-pdf" /> Relatório Técnico</div>
+                      <a
+                        href={relatorioTecnico}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          display: "flex", alignItems: "center", gap: 10,
+                          padding: "12px 16px", borderRadius: 10,
+                          background: "#D1FAE5", border: "1.5px solid #6EE7B7",
+                          color: "#065F46", fontWeight: 600, fontSize: 13,
+                          textDecoration: "none", cursor: "pointer",
+                        }}
+                      >
+                        <i className="fas fa-check-circle" style={{ color: "#059669" }} />
+                        <span style={{ flex: 1 }}>Relatório enviado pelo técnico</span>
+                        <i className="fas fa-external-link-alt" style={{ fontSize: 11 }} />
+                      </a>
+                    </div>
+                  )}
+
+                  {/* ── Carta de Correção ── */}
+                  {mode === "edit" && dadosTecnico?.cartaCorrecao && (
+                    <div className="os-card">
+                      <div className="os-card-title"><i className="fas fa-pen-to-square" /> Carta de Correção</div>
+                      <div style={{
+                        background: "#FFFBEB", borderRadius: 10, padding: "14px 16px",
+                        border: "1.5px solid #FDE68A", fontSize: 13, color: "#92400E",
+                        lineHeight: 1.7, whiteSpace: "pre-wrap",
+                      }}>
+                        {dadosTecnico.cartaCorrecao}
+                      </div>
+                      <div style={{ fontSize: 11, color: "#D97706", marginTop: 8, fontWeight: 600 }}>
+                        <i className="fas fa-triangle-exclamation" style={{ marginRight: 4 }} />
+                        Correção enviada pelo técnico
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Dados do Técnico (fotos, diagnostico, etc) ── */}
+                  {mode === "edit" && dadosTecnico && (
+                    <div className="os-card">
+                      <div className="os-card-title"><i className="fas fa-user-hard-hat" /> Dados do Técnico</div>
+
+                      {/* Info resumida */}
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
+                        {dadosTecnico.diagnostico && (
+                          <div style={{ gridColumn: "1 / -1", background: "#F9FAFB", borderRadius: 8, padding: "8px 12px" }}>
+                            <div style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Diagnóstico</div>
+                            <div style={{ fontSize: 12, color: "#374151" }}>{dadosTecnico.diagnostico}</div>
+                          </div>
+                        )}
+                        {dadosTecnico.servicoRealizado && (
+                          <div style={{ gridColumn: "1 / -1", background: "#F9FAFB", borderRadius: 8, padding: "8px 12px" }}>
+                            <div style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Serviço Realizado</div>
+                            <div style={{ fontSize: 12, color: "#374151" }}>{dadosTecnico.servicoRealizado}</div>
+                          </div>
+                        )}
+                        {dadosTecnico.chassis && (
+                          <div style={{ background: "#F9FAFB", borderRadius: 8, padding: "8px 12px" }}>
+                            <div style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Chassis</div>
+                            <div style={{ fontSize: 13, color: "#374151", fontWeight: 600 }}>{dadosTecnico.chassis}</div>
+                          </div>
+                        )}
+                        {dadosTecnico.horimetro && (
+                          <div style={{ background: "#F9FAFB", borderRadius: 8, padding: "8px 12px" }}>
+                            <div style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Horímetro</div>
+                            <div style={{ fontSize: 13, color: "#374151", fontWeight: 600 }}>{dadosTecnico.horimetro}</div>
+                          </div>
+                        )}
+                        {dadosTecnico.totalHora && (
+                          <div style={{ background: "#F9FAFB", borderRadius: 8, padding: "8px 12px" }}>
+                            <div style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Horas Técnico</div>
+                            <div style={{ fontSize: 13, color: "#374151", fontWeight: 600 }}>{dadosTecnico.totalHora}</div>
+                          </div>
+                        )}
+                        {dadosTecnico.totalKm && (
+                          <div style={{ background: "#F9FAFB", borderRadius: 8, padding: "8px 12px" }}>
+                            <div style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>KM Técnico</div>
+                            <div style={{ fontSize: 13, color: "#374151", fontWeight: 600 }}>{dadosTecnico.totalKm} km</div>
+                          </div>
+                        )}
+                        {dadosTecnico.nomResponsavel && (
+                          <div style={{ gridColumn: "1 / -1", background: "#F9FAFB", borderRadius: 8, padding: "8px 12px" }}>
+                            <div style={{ fontSize: 10, color: "#9CA3AF", fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Responsável (cliente)</div>
+                            <div style={{ fontSize: 12, color: "#374151" }}>{dadosTecnico.nomResponsavel}</div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Peças extras */}
+                      {dadosTecnico.pecasExtras?.length > 0 && (
+                        <div style={{ marginBottom: 12 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: "#D97706", textTransform: "uppercase", marginBottom: 6 }}>
+                            <i className="fas fa-exclamation-triangle" style={{ marginRight: 4 }} />
+                            Peças/Serviços Extras ({dadosTecnico.pecasExtras.length})
+                          </div>
+                          {dadosTecnico.pecasExtras.map((p: any, i: number) => (
+                            <div key={i} style={{
+                              background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: 8,
+                              padding: "6px 10px", marginBottom: 4, fontSize: 12, color: "#92400E",
+                            }}>
+                              {p.descricao || "Sem descrição"} — Qtd: {p.qtdUsada || 1}
+                            </div>
+                          ))}
+                          {dadosTecnico.justificativaPecaExtra && (
+                            <div style={{
+                              background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8,
+                              padding: "8px 10px", marginTop: 4, fontSize: 12, color: "#991B1B",
+                            }}>
+                              <strong>Justificativa:</strong> {dadosTecnico.justificativaPecaExtra}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Fotos organizadas por categoria */}
+                      {(() => {
+                        const fotos = dadosTecnico.fotos || {};
+                        const categorias = [
+                          { titulo: "Identificação", cor: "#1E3A5F", items: [
+                            { label: "Horímetro", url: fotos.horimetro },
+                            { label: "Chassis", url: fotos.chassis },
+                          ]},
+                          { titulo: "Equipamento", cor: "#1E3A5F", items: [
+                            { label: "Frente", url: fotos.frente },
+                            { label: "Direita", url: fotos.direita },
+                            { label: "Esquerda", url: fotos.esquerda },
+                            { label: "Traseira", url: fotos.traseira },
+                            { label: "Volante", url: fotos.volante },
+                          ]},
+                          { titulo: "Falha / Defeito", cor: "#DC2626", items: [
+                            { label: "Falha 1", url: fotos.falha1 },
+                            { label: "Falha 2", url: fotos.falha2 },
+                            { label: "Falha 3", url: fotos.falha3 },
+                            { label: "Falha 4", url: fotos.falha4 },
+                          ]},
+                          { titulo: "Peças", cor: "#D97706", items: [
+                            { label: "Peça Nova 1", url: fotos.pecaNova1 },
+                            { label: "Peça Nova 2", url: fotos.pecaNova2 },
+                            { label: "Instalada 1", url: fotos.pecaInstalada1 },
+                            { label: "Instalada 2", url: fotos.pecaInstalada2 },
+                          ]},
+                        ];
+
+                        return categorias.map((cat) => {
+                          const comFoto = cat.items.filter(f => f.url);
+                          if (comFoto.length === 0) return null;
+                          return (
+                            <div key={cat.titulo} style={{ marginBottom: 12 }}>
+                              <div style={{ fontSize: 11, fontWeight: 700, color: cat.cor, textTransform: "uppercase", marginBottom: 6 }}>
+                                {cat.titulo} ({comFoto.length})
+                              </div>
+                              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(80px, 1fr))", gap: 6 }}>
+                                {comFoto.map((f) => (
+                                  <div key={f.label} style={{ cursor: "pointer" }} onClick={() => setFotoExpandida(f.url)}>
+                                    <img
+                                      src={f.url}
+                                      alt={f.label}
+                                      style={{ width: "100%", height: 70, objectFit: "cover", borderRadius: 8, border: "1.5px solid #E5E7EB" }}
+                                    />
+                                    <div style={{ fontSize: 9, color: "#6B7280", textAlign: "center", marginTop: 2, fontWeight: 600 }}>{f.label}</div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        });
+                      })()}
+
+                      {/* Assinaturas */}
+                      {(dadosTecnico.assinaturas?.cliente || dadosTecnico.assinaturas?.tecnico) && (
+                        <div style={{ marginTop: 8 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: "#1E3A5F", textTransform: "uppercase", marginBottom: 6 }}>
+                            Assinaturas
+                          </div>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                            {dadosTecnico.assinaturas.cliente && (
+                              <div style={{ cursor: "pointer" }} onClick={() => setFotoExpandida(dadosTecnico.assinaturas.cliente)}>
+                                <img src={dadosTecnico.assinaturas.cliente} alt="Assinatura Cliente"
+                                  style={{ width: "100%", height: 60, objectFit: "contain", borderRadius: 8, border: "1.5px solid #E5E7EB", background: "#fff" }} />
+                                <div style={{ fontSize: 9, color: "#6B7280", textAlign: "center", marginTop: 2, fontWeight: 600 }}>Cliente</div>
+                              </div>
+                            )}
+                            {dadosTecnico.assinaturas.tecnico && (
+                              <div style={{ cursor: "pointer" }} onClick={() => setFotoExpandida(dadosTecnico.assinaturas.tecnico)}>
+                                <img src={dadosTecnico.assinaturas.tecnico} alt="Assinatura Técnico"
+                                  style={{ width: "100%", height: 60, objectFit: "contain", borderRadius: 8, border: "1.5px solid #E5E7EB", background: "#fff" }} />
+                                <div style={{ fontSize: 9, color: "#6B7280", textAlign: "center", marginTop: 2, fontWeight: 600 }}>Técnico</div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* ── Modal foto expandida ── */}
+                  {fotoExpandida && (
+                    <div
+                      onClick={() => setFotoExpandida(null)}
+                      style={{
+                        position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)",
+                        zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center",
+                        cursor: "zoom-out",
+                      }}
+                    >
+                      <img src={fotoExpandida} alt="Foto expandida"
+                        style={{ maxWidth: "90vw", maxHeight: "90vh", objectFit: "contain", borderRadius: 8 }} />
+                    </div>
+                  )}
+
                   {/* ── Equipe & Atendimento ── */}
                   <div className="os-card">
                     <div className="os-card-title"><i className="fas fa-users" /> Equipe &amp; Atendimento</div>
@@ -702,16 +923,66 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                       )}
                       {requisicoes.length > 0 && (
                         <div style={S_MT12}>
-                          <label>Requisições Vinculadas</label>
+                          <label>Requisições Vinculadas ({requisicoes.length})</label>
                           <div className="os-req-list">
                             {requisicoes.map((r, i) => (
-                              <div key={i} className="os-req-item">
-                                <span style={S_REQ_BOLD}>{r.id}</span>
+                              <div key={i} className="os-req-item" style={{ flexWrap: "wrap", gap: 6 }}>
+                                <span style={S_REQ_BOLD}>#{r.id}</span>
                                 <span className={`os-req-badge ${r.atualizada ? "ok" : ""}`}>{r.atualizada ? "OK" : "Pendente"}</span>
                                 <span style={S_REQ_MATERIAL}>{r.material}</span>
+                                {r.valor > 0 && <span style={{ fontSize: 12, fontWeight: 700, color: "#059669" }}>R$ {r.valor.toFixed(2)}</span>}
+                                {r.solicitante && r.solicitante !== "N/A" && <span style={{ fontSize: 11, color: "#9CA3AF" }}>({r.solicitante})</span>}
+                                {/* Desvincular */}
+                                {desvinculandoReq === r.id ? (
+                                  <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
+                                    <input
+                                      type="text"
+                                      placeholder="Justificativa obrigatória..."
+                                      value={justificativaDesvinc}
+                                      onChange={(e) => setJustificativaDesvinc(e.target.value)}
+                                      style={{ padding: "6px 10px", fontSize: 12, borderRadius: 6, border: "1px solid #E5E7EB", width: "100%" }}
+                                    />
+                                    <div style={{ display: "flex", gap: 6 }}>
+                                      <button
+                                        onClick={async () => {
+                                          if (!justificativaDesvinc.trim()) { alert("Preencha a justificativa."); return; }
+                                          await fetch("/api/pos/requisicoes/desvincular", {
+                                            method: "POST",
+                                            headers: { "Content-Type": "application/json" },
+                                            body: JSON.stringify({ reqId: r.id, justificativa: justificativaDesvinc.trim(), usuario: userName || "Admin" }),
+                                          });
+                                          setRequisicoes(prev => prev.filter(x => x.id !== r.id));
+                                          setDesvinculandoReq(null);
+                                          setJustificativaDesvinc("");
+                                        }}
+                                        style={{ fontSize: 11, fontWeight: 700, padding: "5px 12px", borderRadius: 6, border: "none", background: "#DC2626", color: "#fff", cursor: "pointer" }}
+                                      >
+                                        Confirmar
+                                      </button>
+                                      <button
+                                        onClick={() => { setDesvinculandoReq(null); setJustificativaDesvinc(""); }}
+                                        style={{ fontSize: 11, fontWeight: 700, padding: "5px 12px", borderRadius: 6, border: "1px solid #E5E7EB", background: "#fff", color: "#6B7280", cursor: "pointer" }}
+                                      >
+                                        Cancelar
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <button
+                                    onClick={() => setDesvinculandoReq(r.id)}
+                                    style={{ fontSize: 10, color: "#DC2626", background: "none", border: "none", cursor: "pointer", fontWeight: 600, marginLeft: "auto" }}
+                                  >
+                                    Desvincular
+                                  </button>
+                                )}
                               </div>
                             ))}
                           </div>
+                          {totalRequisicoes > 0 && (
+                            <div style={{ fontSize: 13, fontWeight: 700, color: "#059669", marginTop: 8, textAlign: "right" }}>
+                              Total Requisições: R$ {totalRequisicoes.toFixed(2)}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -948,6 +1219,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                         <span>Horas: R$ {(subtotalHoras - descHoraValor).toFixed(2)}</span>
                         <span>KM: R$ {(subtotalKm - descKmValor).toFixed(2)}</span>
                         {totalPecas > 0 && <span>Pecas: R$ {totalPecas.toFixed(2)}</span>}
+                        {totalRequisicoes > 0 && <span>Req: R$ {totalRequisicoes.toFixed(2)}</span>}
                         {descValor > 0 && <span>Desc: -R$ {descValor.toFixed(2)}</span>}
                       </div>
                       <div className="os-total-value">

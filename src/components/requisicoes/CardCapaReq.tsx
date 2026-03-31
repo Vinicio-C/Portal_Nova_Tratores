@@ -13,7 +13,7 @@ const CardReq = dynamic(() => import('./CardReq'), { ssr: false });
 export default function CardCapaReq({ req, onUpdate, onPrint, dadosCompartilhados }: any) {
   const [modalAberto, setModalAberto] = useState(false);
 
-  const veioDoApp = req.obs?.includes('[APPSHEET_ID:');
+  const veioDoApp = req.origem === 'app_tecnico' || req.obs?.includes('[APPSHEET_ID:');
 
   // Traduz email->nome usando dados locais
   const nomeExibicao = useMemo(() => {

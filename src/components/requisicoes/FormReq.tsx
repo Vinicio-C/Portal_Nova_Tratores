@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 
 const EMPRESAS = {
@@ -11,6 +11,11 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
   const [usuarios, setUsuarios] = useState<any[]>([]);
   const [veiculos, setVeiculos] = useState<any[]>([]);
 
+  const [ordensAbertas, setOrdensAbertas] = useState<any[]>([]);
+  const [osBusca, setOsBusca] = useState('');
+  const [osDropdownOpen, setOsDropdownOpen] = useState(false);
+  const osRef = useRef<HTMLDivElement>(null);
+
   const [formData, setFormData] = useState({
     titulo: '', tipo: '', solicitante: '', setor: '',
     data: new Date().toISOString().split('T')[0],
@@ -21,14 +26,25 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
 
   useEffect(() => {
     const fetchData = async () => {
-      const [{ data: users }, { data: veic }] = await Promise.all([
+      const [{ data: users }, { data: veic }, { data: ordens }] = await Promise.all([
         supabase.from('req_usuarios').select('nome').order('nome'),
         supabase.from('SupaPlacas').select('IdPlaca, NumPlaca').order('NumPlaca'),
+        supabase.from('Ordem_Servico').select('Id_Ordem, Os_Cliente, Os_Tecnico, Status').not('Status', 'in', '("Concluída","Cancelada")').order('Id_Ordem', { ascending: false }),
       ]);
       if (users) setUsuarios(users);
       if (veic) setVeiculos(veic);
+      if (ordens) setOrdensAbertas(ordens);
     };
     fetchData();
+  }, []);
+
+  // Fechar dropdown de OS ao clicar fora
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (osRef.current && !osRef.current.contains(e.target as Node)) setOsDropdownOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   useEffect(() => {
@@ -71,7 +87,7 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
               <label className={labelStyle}>Tipo</label>
               <select required onChange={e => setFormData({...formData, tipo: e.target.value})} className={inputStyle}>
                 <option value="" className="bg-white">Selecione...</option>
-                {["Peças", "Alimentação", "Trator-Loja", "Trator-Cliente", "Frota-Veiculos", "Serviço de Terceiros", "Almoxarifado", "Ferramenta"].map(t => <option key={t} value={t} className="bg-white">{t}</option>)}
+                {["Peças", "Alimentação", "Frota-Veiculos", "Serviço de Terceiros", "Almoxarifado", "Ferramenta", "Insumo Infra", "Veicular Abastecimento", "Veicular Manutenção", "Trator Abastecimento", "Quadri Abastecimento"].map(t => <option key={t} value={t} className="bg-white">{t}</option>)}
               </select>
             </div>
             <div>
@@ -107,8 +123,8 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
             </div>
           )}
 
-          {/* FROTA-VEICULOS */}
-          {formData.tipo === 'Frota-Veiculos' && (
+          {/* VEICULAR: placa + km */}
+          {['Frota-Veiculos', 'Veicular Abastecimento', 'Veicular Manutenção'].includes(formData.tipo) && (
             <div className="p-6 bg-red-50 rounded-2xl border border-red-200">
               <p className="text-xs font-black text-red-600 uppercase tracking-widest mb-4">Informacoes do Veiculo</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -127,8 +143,8 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
             </div>
           )}
 
-          {/* TRATOR-LOJA */}
-          {formData.tipo === 'Trator-Loja' && (
+          {/* TRATOR-LOJA (por setor) */}
+          {formData.setor === 'Trator-Loja' && (
             <div className="p-6 bg-zinc-100/30 rounded-2xl border border-zinc-300/50">
               <p className="text-xs font-black text-zinc-500 uppercase tracking-widest mb-4">Informacoes do Trator (Loja)</p>
               <div>
@@ -138,8 +154,8 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
             </div>
           )}
 
-          {/* TRATOR-CLIENTE */}
-          {formData.tipo === 'Trator-Cliente' && (
+          {/* TRATOR-CLIENTE (por setor) */}
+          {formData.setor === 'Trator-Cliente' && (
             <div className="p-6 bg-amber-500/10 rounded-2xl border border-orange-500/20">
               <p className="text-xs font-black text-orange-400 uppercase tracking-widest mb-4">Informacoes do Cliente</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -147,9 +163,72 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
                   <label className="text-xs font-bold text-orange-400 uppercase">Cliente</label>
                   <input onChange={e => setFormData({...formData, cliente: e.target.value.toUpperCase()})} className={`${inputStyle} !text-base border-orange-500/20`} />
                 </div>
-                <div>
+                <div ref={osRef} className="relative">
                   <label className="text-xs font-bold text-orange-400 uppercase">O.S.</label>
-                  <input onChange={e => setFormData({...formData, ordem_servico: e.target.value})} className={`${inputStyle} !text-base border-orange-500/20`} />
+                  <div
+                    className={`${inputStyle} !text-base border-orange-500/20 cursor-pointer flex items-center justify-between`}
+                    onClick={() => setOsDropdownOpen(!osDropdownOpen)}
+                  >
+                    <span className={formData.ordem_servico ? 'text-zinc-900' : 'text-zinc-400'}>
+                      {formData.ordem_servico
+                        ? `OS ${formData.ordem_servico} - ${ordensAbertas.find(o => String(o.Id_Ordem) === formData.ordem_servico)?.Os_Cliente || ''}`
+                        : 'Selecione a O.S...'}
+                    </span>
+                    <svg className="w-4 h-4 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                  </div>
+                  {osDropdownOpen && (
+                    <div className="absolute z-50 mt-1 w-full bg-white border border-zinc-200 rounded-xl shadow-xl max-h-64 overflow-auto">
+                      <div className="sticky top-0 bg-white p-2 border-b border-zinc-100">
+                        <input
+                          autoFocus
+                          placeholder="Buscar por OS, cliente ou técnico..."
+                          value={osBusca}
+                          onChange={e => setOsBusca(e.target.value)}
+                          className="w-full px-3 py-2 rounded-lg border border-zinc-200 text-sm outline-none focus:border-red-400"
+                        />
+                      </div>
+                      {formData.ordem_servico && (
+                        <button
+                          type="button"
+                          onClick={() => { setFormData(p => ({...p, ordem_servico: ''})); setOsDropdownOpen(false); setOsBusca(''); }}
+                          className="w-full px-4 py-2 text-left text-sm text-red-500 hover:bg-red-50 border-b border-zinc-100"
+                        >
+                          ✕ Remover seleção
+                        </button>
+                      )}
+                      {ordensAbertas
+                        .filter(o => {
+                          if (!osBusca.trim()) return true;
+                          const q = osBusca.toLowerCase();
+                          return String(o.Id_Ordem).toLowerCase().includes(q) || (o.Os_Cliente || '').toLowerCase().includes(q) || (o.Os_Tecnico || '').toLowerCase().includes(q);
+                        })
+                        .map(o => (
+                          <button
+                            type="button"
+                            key={o.Id_Ordem}
+                            onClick={() => {
+                              setFormData(p => ({...p, ordem_servico: String(o.Id_Ordem), cliente: o.Os_Cliente || p.cliente}));
+                              setOsDropdownOpen(false);
+                              setOsBusca('');
+                            }}
+                            className={`w-full px-4 py-3 text-left hover:bg-zinc-50 border-b border-zinc-50 ${formData.ordem_servico === String(o.Id_Ordem) ? 'bg-red-50' : ''}`}
+                          >
+                            <span className="font-bold text-sm text-zinc-800">OS {o.Id_Ordem}</span>
+                            <span className="text-xs text-zinc-500 ml-2">{o.Os_Cliente}</span>
+                            <span className="text-xs text-zinc-400 ml-2">({o.Os_Tecnico})</span>
+                            <span className="text-[10px] text-zinc-400 ml-2 uppercase">{o.Status}</span>
+                          </button>
+                        ))
+                      }
+                      {ordensAbertas.filter(o => {
+                        if (!osBusca.trim()) return true;
+                        const q = osBusca.toLowerCase();
+                        return String(o.Id_Ordem).toLowerCase().includes(q) || (o.Os_Cliente || '').toLowerCase().includes(q) || (o.Os_Tecnico || '').toLowerCase().includes(q);
+                      }).length === 0 && (
+                        <p className="px-4 py-3 text-sm text-zinc-400 text-center">Nenhuma O.S. encontrada</p>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="text-xs font-bold text-orange-400 uppercase">Chassis / Modelo do Trator</label>

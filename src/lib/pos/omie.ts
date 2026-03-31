@@ -14,6 +14,24 @@ const OMIE_COD_CC = 1969919780; // Banco do Brasil
 const OMIE_NCODSERV_HORA = 1979758762; // Hora Trabalhada (R$193/h)
 const OMIE_NCODSERV_KM = 1975974257; // KM Deslocamento (R$2,80/km)
 const OMIE_NCODSERV_SOL = 2209673817; // Solicitação de Serviço (sol.aber.os)
+const OMIE_NCODSERV_DIV = 0; // Será buscado pelo código "div." na primeira chamada
+
+let nCodServDiv: number | null = null;
+async function buscarNcodServDiv(): Promise<number> {
+  if (nCodServDiv) return nCodServDiv;
+  try {
+    const result = await omieCall<{ nCodServ?: number }>("/servicos/servico/", "ConsultarServico", { cCodServico: "div." });
+    if (result?.nCodServ) { nCodServDiv = result.nCodServ; return nCodServDiv; }
+  } catch {}
+  // Fallback: busca na lista
+  try {
+    const result = await omieCall<{ cadastro?: Array<{ nCodServ: number; cCodServico: string }> }>("/servicos/servico/", "ListarServicos", { pagina: 1, registros_por_pagina: 200 });
+    const serv = (result?.cadastro || []).find(s => s.cCodServico === "div.");
+    if (serv) { nCodServDiv = serv.nCodServ; return nCodServDiv; }
+  } catch {}
+  console.warn("[Omie] Serviço 'div.' não encontrado no Omie");
+  return 0;
+}
 
 // Mapa: código Omie (ex: "rev6075.2400") → nCodServ
 const REVISAO_OMIE: Record<string, number> = {
@@ -340,6 +358,37 @@ function montarServicos(os: Record<string, unknown>): ServicoItem[] {
   return servicos;
 }
 
+/** Monta serviços base + serviços "div." para cada requisição vinculada */
+async function montarServicosComReqs(os: Record<string, unknown>, idOrdem: string): Promise<ServicoItem[]> {
+  const servicos = montarServicos(os);
+
+  // Busca requisições vinculadas à OS com valor_cobrado_cliente
+  const { data: reqs } = await supabase
+    .from("Requisicao")
+    .select("id, titulo, valor_cobrado_cliente")
+    .eq("ordem_servico", idOrdem)
+    .not("status", "in", '("lixeira","cancelada")');
+
+  if (reqs && reqs.length > 0) {
+    const nCodDiv = await buscarNcodServDiv();
+    if (nCodDiv) {
+      for (const r of reqs) {
+        const valor = r.valor_cobrado_cliente ? parseFloat(r.valor_cobrado_cliente) : 0;
+        if (valor > 0) {
+          servicos.push({
+            nCodServico: nCodDiv,
+            nQtde: 1,
+            nValUnit: valor,
+            cDescServ: r.titulo || `Requisição #${r.id}`,
+          });
+        }
+      }
+    }
+  }
+
+  return servicos;
+}
+
 function montarDadosAdic(os: Record<string, unknown>): string {
   const partes: string[] = [];
   if (os.ID_PPV) partes.push(`PPV: ${os.ID_PPV}`);
@@ -406,7 +455,7 @@ export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean
       Observacoes: {
         cObsOS: montarObsOS(os) || undefined,
       },
-      ServicosPrestados: montarServicos(os),
+      ServicosPrestados: await montarServicosComReqs(os, idOrdem),
       Email: {
         cEnvBoleto: "N",
         cEnvLink: "N",

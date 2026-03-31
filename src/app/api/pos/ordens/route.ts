@@ -27,6 +27,7 @@ async function autoMoveByDate() {
   }
 
   // 2. Execução há +1 dia → Aguardando ordem Técnico (vacilo)
+  //    MAS só se não houver datas futuras na agenda_tecnico
   const { data: execAtrasadas } = await supabase
     .from(TBL_OS)
     .select("Id_Ordem, Status, Previsao_Execucao, Os_Tecnico")
@@ -35,6 +36,17 @@ async function autoMoveByDate() {
     .in("Status", ["Execução"]);
 
   for (const os of execAtrasadas || []) {
+    // Verifica se existe alguma data futura na agenda_tecnico para esta OS
+    const { data: agendaFutura } = await supabase
+      .from("agenda_tecnico")
+      .select("id")
+      .eq("id_ordem", os.Id_Ordem)
+      .gte("data_agendada", hojeISO)
+      .limit(1);
+
+    // Se ainda tem datas futuras agendadas, não mover — a OS ainda será executada
+    if (agendaFutura && agendaFutura.length > 0) continue;
+
     await supabase.from(TBL_OS).update({ Status: "Aguardando ordem Técnico" }).eq("Id_Ordem", os.Id_Ordem);
     await registrarLog(os.Id_Ordem, "Auto-move: +1 dia em Execução sem conclusão", "Aguardando ordem Técnico", os.Status);
 

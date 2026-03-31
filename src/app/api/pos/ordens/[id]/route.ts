@@ -10,10 +10,14 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   if (!res || !res.length) return NextResponse.json(null);
 
   const row = res[0];
+  // Buscar requisições vinculadas (legado via Id_Req + novo via Requisicao.ordem_servico)
   const requisicoes: Array<{ id: string; atualizada: boolean; valor: number; linkNota: string; material: string; solicitante: string }> = [];
+  const idsJaAdicionados = new Set<string>();
+
+  // 1. Legado: Id_Req (comma-separated, tabelas Supa-Solicitacao_Req / Supa-AtualizarReq)
   const idReqStr = safeGet(row, "Id_Req") as string;
   if (idReqStr) {
-    const cleanIds = idReqStr.split(",").map((s: string) => s.trim());
+    const cleanIds = idReqStr.split(",").map((s: string) => s.trim()).filter(Boolean);
     const { data: sols } = await supabase.from(TBL_REQ_SOL).select("*").in("IdReq", cleanIds);
     const { data: atts } = await supabase.from(TBL_REQ_ATT).select("*").in("ReqREF", cleanIds);
     cleanIds.forEach((rid) => {
@@ -24,8 +28,37 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         linkNota: "", material: sol ? sol.Material_Serv_Solicitado : "N/A",
         solicitante: sol ? sol.ReqEmail : "N/A",
       });
+      idsJaAdicionados.add(rid);
     });
   }
+
+  // 2. Novo: Requisicao.ordem_servico = idOs (tabela principal)
+  const { data: reqsVinculadas } = await supabase
+    .from("Requisicao")
+    .select("id, titulo, tipo, solicitante, status, valor_despeza, valor_cobrado_cliente, recibo_fornecedor, fornecedor")
+    .eq("ordem_servico", idOs);
+  if (reqsVinculadas) {
+    for (const r of reqsVinculadas) {
+      const rid = String(r.id);
+      if (idsJaAdicionados.has(rid)) continue;
+      const valor = r.valor_cobrado_cliente ? parseFloat(r.valor_cobrado_cliente) : 0;
+      requisicoes.push({
+        id: rid,
+        atualizada: r.status !== "pedido" && !!r.recibo_fornecedor,
+        valor,
+        linkNota: r.recibo_fornecedor || "",
+        material: r.titulo || "N/A",
+        solicitante: r.solicitante || "N/A",
+      });
+    }
+  }
+
+  // Buscar dados do técnico (fotos, assinaturas, etc)
+  const { data: tecData } = await supabase
+    .from("Ordem_Servico_Tecnicos")
+    .select("TipoServico, Motivo, ServicoRealizado, Chassis, Horimetro, Garantia, TotalHora, TotalKm, NomResp, FotoHorimetro, FotoChassis, FotoFrente, FotoDireita, FotoEsquerda, FotoTraseira, FotoVolante, FotoFalha1, FotoFalha2, FotoFalha3, FotoFalha4, FotoPecaNova1, FotoPecaNova2, FotoPecaInstalada1, FotoPecaInstalada2, AssCliente, AssTecnico, PecasInfo, JustificativaPecaExtra, CartaCorrecao")
+    .eq("Ordem_Servico", idOs)
+    .maybeSingle();
 
   return NextResponse.json({
     id: safeGet(row, "Id_Ordem"), nomeCliente: safeGet(row, "Os_Cliente"),
@@ -39,7 +72,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     projeto: safeGet(row, "Projeto"), ordemOmie: safeGet(row, "Ordem_Omie"),
     motivoCancelamento: safeGet(row, "Motivo_Cancelamento"),
     relatorioTecnico: safeGet(row, "ID_Relatorio_Final"),
-    infoRelatorio: safeGet(row, "ID_Relatorio_Final") ? { status: "OK", link: "" } : null,
+    infoRelatorio: safeGet(row, "ID_Relatorio_Final") ? { status: "OK", link: safeGet(row, "ID_Relatorio_Final") } : null,
     infoRequisicoes: requisicoes,
     descontoSalvo: safeGet(row, "Desconto"),
     descontoHora: safeGet(row, "Desconto_Hora"),
@@ -55,6 +88,47 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       const principal = safeGet(row, "Previsao_Execucao") || "";
       return (agItems || []).map(a => a.data_agendada).filter(d => d !== principal);
     })(),
+    dadosTecnico: tecData ? {
+      tipoServico: tecData.TipoServico,
+      diagnostico: tecData.Motivo,
+      servicoRealizado: tecData.ServicoRealizado,
+      chassis: tecData.Chassis,
+      horimetro: tecData.Horimetro,
+      garantia: tecData.Garantia,
+      totalHora: tecData.TotalHora,
+      totalKm: tecData.TotalKm,
+      nomResponsavel: tecData.NomResp,
+      justificativaPecaExtra: tecData.JustificativaPecaExtra,
+      cartaCorrecao: tecData.CartaCorrecao || null,
+      fotos: {
+        horimetro: tecData.FotoHorimetro || null,
+        chassis: tecData.FotoChassis || null,
+        frente: tecData.FotoFrente || null,
+        direita: tecData.FotoDireita || null,
+        esquerda: tecData.FotoEsquerda || null,
+        traseira: tecData.FotoTraseira || null,
+        volante: tecData.FotoVolante || null,
+        falha1: tecData.FotoFalha1 || null,
+        falha2: tecData.FotoFalha2 || null,
+        falha3: tecData.FotoFalha3 || null,
+        falha4: tecData.FotoFalha4 || null,
+        pecaNova1: tecData.FotoPecaNova1 || null,
+        pecaNova2: tecData.FotoPecaNova2 || null,
+        pecaInstalada1: tecData.FotoPecaInstalada1 || null,
+        pecaInstalada2: tecData.FotoPecaInstalada2 || null,
+      },
+      assinaturas: {
+        cliente: tecData.AssCliente || null,
+        tecnico: tecData.AssTecnico || null,
+      },
+      pecasExtras: (() => {
+        if (!tecData.PecasInfo) return [];
+        try {
+          const parsed = JSON.parse(tecData.PecasInfo);
+          return parsed.filter((p: any) => p.origem === 'manual');
+        } catch { return []; }
+      })(),
+    } : null,
   });
 }
 
@@ -116,10 +190,26 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     Object.values(resumo).forEach((p) => { if (p.qtde !== 0) vPecas += p.totalFin; });
   }
 
+  // Somar valor das requisições vinculadas (tabela Requisicao.ordem_servico)
   let vReq = 0;
-  for (const rid of listaIds) {
-    const { data } = await supabase.from(TBL_REQ_ATT).select("ReqValor").eq("ReqREF", rid);
-    if (data && data.length > 0) vReq += parseFloat(data[0].ReqValor || 0);
+  const { data: reqsOS } = await supabase
+    .from("Requisicao")
+    .select("valor_cobrado_cliente")
+    .eq("ordem_servico", idOs)
+    .not("status", "in", '("lixeira","cancelada")');
+  if (reqsOS) {
+    for (const r of reqsOS) {
+      if (r.valor_cobrado_cliente) vReq += parseFloat(r.valor_cobrado_cliente);
+    }
+  }
+  // Legado: Supa-AtualizarReq via Id_Req
+  const idReqStrPatch = String((await supabase.from(TBL_OS).select("Id_Req").eq("Id_Ordem", idOs).limit(1)).data?.[0]?.Id_Req || "");
+  if (idReqStrPatch) {
+    const legacyIds = idReqStrPatch.split(",").map((s: string) => s.trim()).filter(Boolean);
+    for (const rid of legacyIds) {
+      const { data } = await supabase.from(TBL_REQ_ATT).select("ReqValor").eq("ReqREF", rid);
+      if (data && data.length > 0) vReq += parseFloat(data[0].ReqValor || 0);
+    }
   }
 
   const vHoras = parseFloat(dados.qtdHoras || 0) * VALOR_HORA;
