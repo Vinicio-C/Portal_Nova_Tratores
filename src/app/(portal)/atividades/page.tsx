@@ -50,6 +50,9 @@ const ACAO_COLORS: Record<string, { bg: string; text: string }> = {
   mover_status: { bg: 'bg-amber-50', text: 'text-amber-700' },
   upload: { bg: 'bg-cyan-50', text: 'text-cyan-700' },
   acesso: { bg: 'bg-zinc-100', text: 'text-zinc-500' },
+  enviar_omie: { bg: 'bg-indigo-50', text: 'text-indigo-700' },
+  adicionar_item: { bg: 'bg-teal-50', text: 'text-teal-700' },
+  devolver: { bg: 'bg-orange-50', text: 'text-orange-700' },
 }
 
 const PAGE_SIZE = 30
@@ -144,6 +147,9 @@ function AtividadesPageInner() {
       mover_status: 'Moveu status',
       upload: 'Fez upload',
       acesso: 'Acessou',
+      enviar_omie: 'Enviou para Omie',
+      adicionar_item: 'Adicionou item',
+      devolver: 'Devolveu item',
     }
     return map[acao] || acao
   }

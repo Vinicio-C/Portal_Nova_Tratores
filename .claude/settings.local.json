@@ -279,7 +279,10 @@
       "Bash(taskkill //F //IM node.exe 2>&1)",
       "Bash(ls -la /c/projetos/portal/*.md 2>/dev/null)",
       "Bash(grep -r \"mecanico\\\\|tecnico\" /c/projetos/portal/src --include=\"*.ts\" --include=\"*.tsx\" -l 2>/dev/null | head -30)",
-      "Bash(find /c/projetos/portal/src -type f \\\\\\( -name \"*.ts\" -o -name \"*.tsx\" \\\\\\) | xargs grep -l \"mecanico_usuarios\\\\|Tecnicos_Appsheet\\\\|Solicitacao_Requisicao\\\\|Atualizar_Req\" 2>/dev/null | head -20)"
+      "Bash(find /c/projetos/portal/src -type f \\\\\\( -name \"*.ts\" -o -name \"*.tsx\" \\\\\\) | xargs grep -l \"mecanico_usuarios\\\\|Tecnicos_Appsheet\\\\|Solicitacao_Requisicao\\\\|Atualizar_Req\" 2>/dev/null | head -20)",
+      "Bash(grep -r \"substituto\\\\|Substituto\\\\|SUBSTITUTO\\\\|substituído\\\\|replacement\\\\|substitute\" \"C:\\\\projetos\\\\portal\\\\src\" --include=\"*.ts\" --include=\"*.tsx\" 2>/dev/null | head -20)",
+      "Bash(cat > /dev/null << 'EOF'\nThis is a test - no file should be created\nEOF)",
+      "Bash(wc -l /c/projetos/portal/src/app/\\\\\\(portal\\\\\\)/financeiro/kanban-financeiro/page.js)"
     ]
   }
 }

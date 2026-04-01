@@ -3,6 +3,7 @@ import { supabaseFetch, getValorInsensivel, formatarDataBR } from "@/lib/ppv/sup
 import { TBL_PEDIDOS, TBL_ITENS, TBL_LOGS } from "@/lib/ppv/constants";
 import { buscarPPVPorId, atualizarValorTotal, registrarLog, vincularPPVnaOS, gerarProximoId, sincronizarStatusComOS } from "@/lib/ppv/queries";
 import { criarPedidoSchema, editarPedidoSchema } from "@/lib/ppv/schemas";
+import { logAndNotify } from "@/lib/server/audit-notify";
 
 // GET - Listar kanban OU buscar por ID
 export async function GET(req: NextRequest) {
@@ -115,6 +116,16 @@ export async function POST(req: NextRequest) {
       await atualizarValorTotal(finalId);
     }
 
+    const userNameLog = dadosPPV.userName || "Sistema";
+    const acaoPPV = dadosPPV.idExistente ? "editar" : "criar";
+    await logAndNotify({
+      userName: userNameLog, sistema: "ppv", acao: acaoPPV,
+      entidade: "pedido", entidadeId: finalId, entidadeLabel: `PPV ${finalId} - ${dadosPPV.cliente}`,
+      notifTitulo: dadosPPV.idExistente ? `PPV ${finalId} editada` : `Nova PPV criada: ${finalId}`,
+      notifDescricao: `${userNameLog} ${dadosPPV.idExistente ? "editou" : "criou"} PPV ${finalId} para ${dadosPPV.cliente}`,
+      notifLink: `/ppv?id=${finalId}`,
+    });
+
     const detalhesCompletos = await buscarPPVPorId(finalId);
     return NextResponse.json({ id: finalId, detalhes: detalhesCompletos });
   } catch (e) {
@@ -146,10 +157,61 @@ export async function PATCH(req: NextRequest) {
     if (dados.osId !== undefined) payload.Id_Os = dados.osId;
     if (dados.tipoPedido) payload.Tipo_Pedido = dados.tipoPedido;
     if (dados.motivoSaida) payload.Motivo_Saida_Pedido = dados.motivoSaida;
+    payload.substituto_tipo = dados.substitutoTipo || null;
+    payload.substituto_id = dados.substitutoId || null;
+
+    // Buscar estado atual para comparar mudanças
+    const estadoAtual = await buscarPPVPorId(dados.id);
+    const userName = dados.userName || "Sistema";
 
     await supabaseFetch(`${TBL_PEDIDOS}?id_pedido=eq.${dados.id}`, "PATCH", payload);
     if (dados.osId) await vincularPPVnaOS(dados.osId, dados.id);
-    await registrarLog(dados.id, `Status: ${dados.status}`, dados.userName || "Sistema");
+
+    // Registrar logs detalhados de cada mudança
+    if (!estadoAtual) {
+      await registrarLog(dados.id, `Dados atualizados`, userName);
+    } else {
+      let temMudanca = false;
+      if (estadoAtual.status !== dados.status) {
+        await registrarLog(dados.id, `Status: ${estadoAtual.status} → ${dados.status}`, userName);
+        temMudanca = true;
+      }
+      if (dados.tecnico && estadoAtual.tecnico !== dados.tecnico) {
+        await registrarLog(dados.id, `Técnico alterado: ${estadoAtual.tecnico || "—"} → ${dados.tecnico}`, userName);
+        temMudanca = true;
+      }
+      if (dados.cliente && estadoAtual.cliente !== dados.cliente) {
+        await registrarLog(dados.id, `Cliente alterado: ${estadoAtual.cliente || "—"} → ${dados.cliente}`, userName);
+        temMudanca = true;
+      }
+      if (dados.tipoPedido && estadoAtual.tipoPedido !== dados.tipoPedido) {
+        await registrarLog(dados.id, `Tipo alterado: ${estadoAtual.tipoPedido || "—"} → ${dados.tipoPedido}`, userName);
+        temMudanca = true;
+      }
+      if (dados.motivoSaida && estadoAtual.motivoSaida !== dados.motivoSaida) {
+        await registrarLog(dados.id, `Motivo de saída alterado: ${estadoAtual.motivoSaida || "—"} → ${dados.motivoSaida}`, userName);
+        temMudanca = true;
+      }
+      if (dados.observacao !== undefined && estadoAtual.observacao !== dados.observacao) {
+        await registrarLog(dados.id, `Observação alterada`, userName);
+        temMudanca = true;
+      }
+      if (dados.substitutoId && !estadoAtual.substitutoId) {
+        await registrarLog(dados.id, `Substituto definido: ${dados.substitutoTipo} ${dados.substitutoId}`, userName);
+        temMudanca = true;
+      }
+      if (!temMudanca) {
+        await registrarLog(dados.id, `Dados atualizados`, userName);
+      }
+    }
+
+    await logAndNotify({
+      userName, sistema: "ppv", acao: "editar",
+      entidade: "pedido", entidadeId: dados.id, entidadeLabel: `PPV ${dados.id}`,
+      notifTitulo: `PPV ${dados.id} atualizada`,
+      notifDescricao: `${userName} editou PPV ${dados.id}`,
+      notifLink: `/ppv?id=${dados.id}`,
+    });
 
     return NextResponse.json({ success: true });
   } catch (e) {

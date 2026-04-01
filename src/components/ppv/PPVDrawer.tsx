@@ -20,6 +20,7 @@ interface Props {
   modalOSId: string;
   modalOSDisplay: string;
   modalProdDisplay: string;
+  modalProdCodigo?: string;
   onModalProdDisplayChange: (v: string) => void;
   onSetModalOS: (id: string, display: string) => void;
   modalClienteNome: string;
@@ -28,7 +29,7 @@ interface Props {
 
 export default function PPVDrawer({
   open, ppvId, onClose, onBuscaProduto, onBuscaOS, onBuscaCliente,
-  modalOSId, modalOSDisplay, modalProdDisplay,
+  modalOSId, modalOSDisplay, modalProdDisplay, modalProdCodigo,
   onModalProdDisplayChange, onSetModalOS,
   modalClienteNome, onDirty,
 }: Props) {
@@ -46,6 +47,9 @@ export default function PPVDrawer({
   const [motivoSaida, setMotivoSaida] = useState("Venda Balcão");
   const [observacao, setObservacao] = useState("");
   const [motivoCancelamento, setMotivoCancelamento] = useState("");
+  const [temSubstituto, setTemSubstituto] = useState(false);
+  const [substitutoTipo, setSubstitutoTipo] = useState<"POS" | "PPV">("POS");
+  const [substitutoId, setSubstitutoId] = useState("");
   const [pedidoOmie, setPedidoOmie] = useState("");
   const [qtdExtra, setQtdExtra] = useState(1);
   const [salvando, setSalvando] = useState(false);
@@ -86,6 +90,9 @@ export default function PPVDrawer({
       setMotivoSaida(d.motivoSaida || "Venda Balcão");
       setObservacao(d.observacao || "");
       setMotivoCancelamento(d.motivoCancelamento || "");
+      setTemSubstituto(!!(d.substitutoTipo && d.substitutoId));
+      setSubstitutoTipo((d.substitutoTipo === "POS" || d.substitutoTipo === "PPV") ? d.substitutoTipo : "POS");
+      setSubstitutoId(d.substitutoId || "");
       setPedidoOmie(d.pedidoOmie || "");
       onSetModalOS(d.osId || "", d.osId ? `OS #${d.osId} (Vinculada)` : "");
       carregarDadosCliente(d.cliente || "");
@@ -139,12 +146,17 @@ export default function PPVDrawer({
     if (!cliente.trim()) erros.push("Cliente");
     if (!tecnico.trim()) erros.push("Técnico");
     if (status === "Cancelado" && !motivoCancelamento.trim()) erros.push("Motivo do Cancelamento");
+    if (status === "Cancelado" && temSubstituto && !substitutoId.trim()) erros.push("ID do Substituto");
     if (status === "Fechado" && !pedidoOmie.trim()) erros.push("Pedido OMIE");
     if (erros.length > 0) { showToast("error", `Campos obrigatórios: ${erros.join(", ")}`); return; }
 
     setSalvando(true);
     try {
-      await api.editarPedido({ id: ppvId!, status, observacao, tecnico, cliente, motivoCancelamento, pedidoOmie, osId: modalOSId, tipoPedido, motivoSaida, userName: userProfile?.nome || "" });
+      await api.editarPedido({
+        id: ppvId!, status, observacao, tecnico, cliente, motivoCancelamento, pedidoOmie, osId: modalOSId, tipoPedido, motivoSaida, userName: userProfile?.nome || "",
+        substitutoTipo: temSubstituto ? substitutoTipo : null,
+        substitutoId: temSubstituto ? substitutoId : null,
+      });
       showToast("success", "Atualizado com sucesso!");
       onDirty?.();
       onClose();
@@ -158,7 +170,7 @@ export default function PPVDrawer({
     const cached = productCache[c] || { descricao: "ITEM MANUAL", preco: 0 };
     setAddingExtra(true);
     try {
-      const d = await api.registrarMovimentacao({ id: ppvId!, codigo: c, descricao: cached.descricao, quantidade: qtdExtra, preco: cached.preco, tecnico: details?.tecnico || "", tipoMovimento: "Saída" });
+      const d = await api.registrarMovimentacao({ id: ppvId!, codigo: c, descricao: cached.descricao, quantidade: qtdExtra, preco: cached.preco, tecnico: details?.tecnico || "", tipoMovimento: "Saída", userName: userProfile?.nome || "" });
       setDetails(d);
       showToast("success", "Item adicionado");
       onModalProdDisplayChange("");
@@ -171,7 +183,7 @@ export default function PPVDrawer({
     if (!devolucaoProd || !ppvId) return;
     setConfirmandoDev(true);
     try {
-      const d = await api.registrarMovimentacao({ id: ppvId, codigo: devolucaoProd.codigo, descricao: devolucaoProd.descricao, quantidade, preco: devolucaoProd.preco, tecnico: details?.tecnico || "", tipoMovimento: "Devolução" });
+      const d = await api.registrarMovimentacao({ id: ppvId, codigo: devolucaoProd.codigo, descricao: devolucaoProd.descricao, quantidade, preco: devolucaoProd.preco, tecnico: details?.tecnico || "", tipoMovimento: "Devolução", userName: userProfile?.nome || "" });
       setDetails(d);
       setDevolucaoOpen(false);
       showToast("success", "Devolução registrada!");
@@ -184,7 +196,7 @@ export default function PPVDrawer({
     if (!ppvId) return;
     setEnviandoOmie(true);
     try {
-      const res = await api.enviarParaOmie(ppvId);
+      const res = await api.enviarParaOmie(ppvId, userProfile?.nome || "");
       showToast("success", `Pedido Omie nº ${res.numeroPedido} criado! PPV fechado.`);
       onDirty?.();
       onClose();
@@ -287,7 +299,20 @@ export default function PPVDrawer({
                     {status === "Cancelado" && (
                       <div style={{ marginTop: 12 }}>
                         <label>Motivo do Cancelamento *</label>
-                        <textarea rows={2} value={motivoCancelamento} onChange={(e) => setMotivoCancelamento(e.target.value)} placeholder="Descreva o motivo..." style={{ marginBottom: 0 }} />
+                        <textarea rows={2} value={motivoCancelamento} onChange={(e) => setMotivoCancelamento(e.target.value)} placeholder="Descreva o motivo..." style={{ marginBottom: 12 }} />
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: temSubstituto ? 10 : 0 }}>
+                          <input type="checkbox" id="ppvTemSubstituto" checked={temSubstituto} onChange={(e) => { setTemSubstituto(e.target.checked); if (!e.target.checked) { setSubstitutoId(""); } }} />
+                          <label htmlFor="ppvTemSubstituto" style={{ margin: 0, fontWeight: 600, cursor: "pointer" }}>Tem substituto?</label>
+                        </div>
+                        {temSubstituto && (
+                          <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
+                            <select value={substitutoTipo} onChange={(e) => { setSubstitutoTipo(e.target.value as "POS" | "PPV"); setSubstitutoId(""); }} style={{ width: 100, fontWeight: 600 }}>
+                              <option value="POS">POS</option>
+                              <option value="PPV">PPV</option>
+                            </select>
+                            <input type="text" value={substitutoId} onChange={(e) => setSubstitutoId(e.target.value)} placeholder={substitutoTipo === "POS" ? "Ex: OS-0001" : "Ex: PPV-0001"} style={{ flex: 1, fontWeight: 600, marginBottom: 0 }} />
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

@@ -61,12 +61,13 @@ export const api = {
     cliente?: string;
     motivoCancelamento: string; pedidoOmie: string; osId: string;
     tipoPedido: string; motivoSaida: string; userName?: string;
+    substitutoTipo?: string | null; substitutoId?: string | null;
   }) => patch<{ success: boolean }>("/api/ppv/pedidos", dados),
 
   // --- Movimentações ---
   registrarMovimentacao: (dados: {
     id: string; codigo: string; descricao: string; quantidade: number;
-    preco: number; tecnico: string; tipoMovimento: string;
+    preco: number; tecnico: string; tipoMovimento: string; userName?: string;
   }) => post<PPVDetalhes>("/api/ppv/movimentacoes", dados),
 
   // --- Busca de Clientes ---
@@ -103,6 +104,6 @@ export const api = {
     request<{ html: string }>(`/api/ppv/pdf?id=${encodeURIComponent(id)}`),
 
   // --- Omie ---
-  enviarParaOmie: (id: string) =>
-    post<{ success: boolean; numeroPedido: string }>("/api/ppv/pedidos/omie", { id }),
+  enviarParaOmie: (id: string, userName?: string) =>
+    post<{ success: boolean; numeroPedido: string }>("/api/ppv/pedidos/omie", { id, userName }),
 };

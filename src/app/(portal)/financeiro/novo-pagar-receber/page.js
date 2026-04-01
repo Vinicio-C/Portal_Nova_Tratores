@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
@@ -14,6 +14,10 @@ export default function NovoPagarReceber() {
   const [loading, setLoading] = useState(false)
   const [pageLoading, setPageLoading] = useState(true)
   const [fornecedores, setFornecedores] = useState([])
+
+  const [buscaFornecedor, setBuscaFornecedor] = useState('')
+  const [showFornecedorList, setShowFornecedorList] = useState(false)
+  const fornecedorRef = useRef(null)
 
   const [fileNFServ, setFileNFServ] = useState(null)
   const [fileBoleto, setFileBoleto] = useState(null)
@@ -106,10 +110,32 @@ export default function NovoPagarReceber() {
 
             {/* FORNECEDOR */}
             <Field label="Fornecedor" icon={<User size={18} />}>
-              <select required style={selectStyle} onChange={e => setFormData({...formData, entidade: e.target.value})}>
-                <option value="">Selecione na lista...</option>
-                {fornecedores.map(f => <option key={f.id} value={f.nome}>{f.nome}</option>)}
-              </select>
+              <div ref={fornecedorRef} style={{ position:'relative' }}>
+                <input
+                  type="text"
+                  required
+                  placeholder="Pesquisar fornecedor..."
+                  style={inputIconStyle}
+                  value={buscaFornecedor}
+                  onChange={e => { setBuscaFornecedor(e.target.value); setShowFornecedorList(true); setFormData({...formData, entidade: ''}); }}
+                  onFocus={() => setShowFornecedorList(true)}
+                  onBlur={e => { if (!fornecedorRef.current?.contains(e.relatedTarget)) setTimeout(() => setShowFornecedorList(false), 150); }}
+                />
+                {showFornecedorList && (
+                  <div style={{ position:'absolute', top:'100%', left:0, right:0, maxHeight:'220px', overflowY:'auto', background:'#fff', border:'1px solid #e5e7eb', borderRadius:'0 0 8px 8px', boxShadow:'0 4px 12px rgba(0,0,0,0.08)', zIndex:10 }}>
+                    {fornecedores.filter(f => f.nome.toLowerCase().includes(buscaFornecedor.toLowerCase())).map(f => (
+                      <div key={f.id} tabIndex={0} onMouseDown={e => e.preventDefault()} onClick={() => { setBuscaFornecedor(f.nome); setFormData({...formData, entidade: f.nome}); setShowFornecedorList(false); }}
+                        style={{ padding:'10px 14px', cursor:'pointer', fontSize:'14px', color:'#1e293b', borderBottom:'1px solid #f3f4f6', fontFamily:'Montserrat, sans-serif' }}
+                        onMouseEnter={e => e.currentTarget.style.background = '#f1f5f9'}
+                        onMouseLeave={e => e.currentTarget.style.background = '#fff'}
+                      >{f.nome}</div>
+                    ))}
+                    {fornecedores.filter(f => f.nome.toLowerCase().includes(buscaFornecedor.toLowerCase())).length === 0 && (
+                      <div style={{ padding:'12px 14px', fontSize:'13px', color:'#9ca3af', textAlign:'center' }}>Nenhum fornecedor encontrado</div>
+                    )}
+                  </div>
+                )}
+              </div>
             </Field>
 
             {/* METODO */}
@@ -122,13 +148,16 @@ export default function NovoPagarReceber() {
                 <option value="Cartão de Débito">Cartao de Debito</option>
                 <option value="Dinheiro">Dinheiro</option>
                 <option value="Transferência">Transferencia</option>
+                <option value="Carnê ISS">Carnê ISS</option>
               </select>
             </Field>
 
-            {/* NF */}
+            {/* NF — não exige para Carnê ISS */}
+            {formData.metodo !== 'Carnê ISS' && (
             <Field label="Numero da Nota Fiscal" icon={<Hash size={18} />}>
               <input placeholder="000.000.000" required style={inputIconStyle} onChange={e => setFormData({...formData, numero_NF: e.target.value})} />
             </Field>
+            )}
 
             {/* VALOR + VENCIMENTO */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
@@ -156,7 +185,9 @@ export default function NovoPagarReceber() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', padding: '24px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
               <label style={{ ...labelStyle, marginBottom: '0' }}>Documentacao</label>
 
-              <FileUploadBtn file={fileNFServ} onSelect={setFileNFServ} label="Nota Fiscal Principal" required />
+              {formData.metodo !== 'Carnê ISS' && (
+                <FileUploadBtn file={fileNFServ} onSelect={setFileNFServ} label="Nota Fiscal Principal" required />
+              )}
 
               <FileUploadBtn file={null} onSelect={null} label="Anexar Requisicoes de Compra" isMulti filesReq={filesReq} setFilesReq={setFilesReq} />
 

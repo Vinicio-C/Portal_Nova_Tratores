@@ -332,6 +332,9 @@ function HomePosVendasContent() {
                       <div style={cardMetaStyle}><CreditCard size={13}/> {t.metodo?.toUpperCase() || 'DESPESA'}</div>
                       <div style={cardMetaStyle}><Calendar size={13}/> {formatarDataBR(t.data_vencimento)}</div>
                     </div>
+                    {t.metodo === 'Carnê ISS' && (
+                      <div style={{ marginBottom: '10px', display: 'inline-block', background: '#fef3c7', color: '#92400e', fontSize: '11px', fontWeight: '700', padding: '4px 10px', borderRadius: '6px', border: '1px solid #fcd34d', letterSpacing: '0.5px' }}>CARNÊ ISS</div>
+                    )}
                     <div style={{fontSize:'26px', color: '#1e293b'}}>{formatarMoeda(t.valor)}</div>
                   </div>
                 </div>
@@ -419,14 +422,16 @@ function HomePosVendasContent() {
 
                   {/* CAMPOS ESPECIFICOS PAGAR */}
                   {tarefaSelecionada.gTipo === 'pagar' && (
-                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'30px', padding:'45px', background:'#fef2f2', border:'1px solid #e5e7eb', marginBottom:'45px', borderRadius:'22px' }}>
+                    <div style={{ display:'flex', flexDirection:'column', gap:'24px', padding:'40px', background:'#fef2f2', border:'1px solid #fecaca', borderRadius:'16px', marginBottom:'45px' }}>
+                      {tarefaSelecionada.metodo !== 'Carnê ISS' && (
                       <div style={fieldBoxInner}>
                         <label style={labelMStyle}>NUMERO DA NOTA FISCAL</label>
                         <input style={inputStyleLight} placeholder="Ex: 000.000.000" defaultValue={tarefaSelecionada.numero_NF || ''} onBlur={e => handleUpdateField(tarefaSelecionada, 'numero_NF', e.target.value)} />
                       </div>
-                      <div style={{gridColumn:'span 2', ...fieldBoxInner}}>
-                        <label style={labelMStyle}>DESCRICAO / OBSERVACOES</label>
-                        <textarea style={{...inputStyleLight, height:'120px', resize:'none'}} defaultValue={tarefaSelecionada.motivo} onBlur={e => handleUpdateField(tarefaSelecionada, 'motivo', e.target.value)} />
+                      )}
+                      <div style={fieldBoxInner}>
+                        <label style={{...labelMStyle, display:'flex', alignItems:'center', gap:'8px', marginBottom:'14px'}}>DESCRIÇÃO / OBSERVAÇÕES</label>
+                        <textarea style={{...inputStyleLight, minHeight:'60px', resize:'vertical', lineHeight:'1.7', fontSize:'15px', padding:'18px 20px', fontFamily:'Montserrat, sans-serif', overflow:'hidden', height:'auto'}} defaultValue={tarefaSelecionada.motivo} onBlur={e => handleUpdateField(tarefaSelecionada, 'motivo', e.target.value)} placeholder="Detalhes do pagamento, observações relevantes..." ref={el => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; } }} onInput={e => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }} />
                       </div>
                     </div>
                   )}
@@ -488,35 +493,30 @@ function HomePosVendasContent() {
                       </div>
                   )}
 
+                  {tarefaSelecionada.gTipo === 'rh' && (
                   <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:'30px', border:'1px solid #e5e7eb', padding:'45px', background:'#fef2f2', borderRadius:'22px' }}>
-                    {tarefaSelecionada.gTipo === 'rh' ? (
-                      <>
                         <div style={fieldBoxInner}><label style={labelMStyle}>TITULO</label><input style={inputStyleLight} defaultValue={tarefaSelecionada.titulo} onBlur={e => handleUpdateField(tarefaSelecionada, 'titulo', e.target.value)} /></div>
                         <div style={fieldBoxInner}><label style={labelMStyle}>SETOR</label><input style={{...inputStyleLight, color:'#0ea5e9'}} defaultValue={tarefaSelecionada.setor} onBlur={e => handleUpdateField(tarefaSelecionada, 'setor', e.target.value)} /></div>
                         <div style={{...fieldBoxInner, gridColumn:'span 2'}}><label style={labelMStyle}>DESCRICAO</label><textarea style={{...inputStyleLight, height:'100px', resize:'none'}} defaultValue={tarefaSelecionada.descricao} onBlur={e => handleUpdateField(tarefaSelecionada, 'descricao', e.target.value)} /></div>
-                      </>
-                    ) : (
-                      <>
-                        <div style={fieldBoxInner}><label style={labelMStyle}>METODO</label><p style={{fontSize:'15px', fontWeight: '600', color:'#1e293b'}}>{tarefaSelecionada.forma_pagamento || 'N/A'}</p></div>
-                        {tarefaSelecionada.gTipo === 'boleto' && (
-                          <>
-                              {(tarefaSelecionada.num_nf_servico || !tarefaSelecionada.num_nf_peca) && (
-                                <div style={fieldBoxInner}><label style={labelMStyle}>NF SERVICO</label><input style={inputStyleLight} defaultValue={tarefaSelecionada.num_nf_servico} onBlur={e => handleUpdateField(tarefaSelecionada, 'num_nf_servico', e.target.value)} /></div>
-                              )}
-                              {(tarefaSelecionada.num_nf_peca || !tarefaSelecionada.num_nf_servico) && (
-                                <div style={fieldBoxInner}><label style={labelMStyle}>NF PECA</label><input style={inputStyleLight} defaultValue={tarefaSelecionada.num_nf_peca} onBlur={e => handleUpdateField(tarefaSelecionada, 'num_nf_peca', e.target.value)} /></div>
-                              )}
-                          </>
+                  </div>
+                  )}
+
+                  {tarefaSelecionada.gTipo === 'boleto' && (
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:'30px', border:'1px solid #e5e7eb', padding:'45px', background:'#fef2f2', borderRadius:'22px' }}>
+                        {(tarefaSelecionada.num_nf_servico || !tarefaSelecionada.num_nf_peca) && (
+                          <div style={fieldBoxInner}><label style={labelMStyle}>NF SERVICO</label><input style={inputStyleLight} defaultValue={tarefaSelecionada.num_nf_servico} onBlur={e => handleUpdateField(tarefaSelecionada, 'num_nf_servico', e.target.value)} /></div>
                         )}
-                        {(tarefaSelecionada.obs || tarefaSelecionada.motivo) && (
+                        {(tarefaSelecionada.num_nf_peca || !tarefaSelecionada.num_nf_servico) && (
+                          <div style={fieldBoxInner}><label style={labelMStyle}>NF PECA</label><input style={inputStyleLight} defaultValue={tarefaSelecionada.num_nf_peca} onBlur={e => handleUpdateField(tarefaSelecionada, 'num_nf_peca', e.target.value)} /></div>
+                        )}
+                        {tarefaSelecionada.obs && (
                           <div style={{gridColumn:'span 2', ...fieldBoxInner}}>
                             <label style={labelMStyle}>OBSERVAÇÕES</label>
-                            <textarea style={{...inputStyleLight, minHeight:'100px', resize:'vertical', lineHeight:'1.6', fontSize:'14px', padding:'14px'}} defaultValue={tarefaSelecionada.obs || tarefaSelecionada.motivo} onBlur={e => handleUpdateField(tarefaSelecionada, tarefaSelecionada.gTipo === 'boleto' ? 'obs' : 'motivo', e.target.value)} />
+                            <textarea style={{...inputStyleLight, minHeight:'100px', resize:'vertical', lineHeight:'1.6', fontSize:'14px', padding:'14px'}} defaultValue={tarefaSelecionada.obs} onBlur={e => handleUpdateField(tarefaSelecionada, 'obs', e.target.value)} />
                           </div>
                         )}
-                      </>
-                    )}
                   </div>
+                  )}
 
                   {/* === DOCUMENTOS - LAYOUT INTERATIVO === */}
                   <div style={{marginTop:'45px'}}>
@@ -607,7 +607,6 @@ function HomePosVendasContent() {
                           <div style={{ display:'flex', gap:'15px', flexWrap:'wrap' }}>
                             <AttachmentTag label="Nota Fiscal" fileUrl={tarefaSelecionada.anexo_nf} onUpload={f => handleUpdateFileDirect(tarefaSelecionada, 'anexo_nf', f)} />
                             <AttachmentTag icon={<Barcode size={18}/>} label="Boleto" fileUrl={tarefaSelecionada.anexo_boleto} onUpload={f => handleUpdateFileDirect(tarefaSelecionada, 'anexo_boleto', f)} />
-                            {tarefaSelecionada.anexo_requisicao && <AttachmentTag label="Requisicao" fileUrl={tarefaSelecionada.anexo_requisicao} onUpload={f => handleUpdateFileDirect(tarefaSelecionada, 'anexo_requisicao', f)} />}
                           </div>
                         </div>
                       )}

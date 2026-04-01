@@ -70,6 +70,9 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   const [descKmValor, setDescKmValor] = useState(0);
   const [ordemOmie, setOrdemOmie] = useState("");
   const [motivoCancel, setMotivoCancel] = useState("");
+  const [temSubstituto, setTemSubstituto] = useState(false);
+  const [substitutoTipo, setSubstitutoTipo] = useState<"POS" | "PPV">("POS");
+  const [substitutoId, setSubstitutoId] = useState("");
   const [relatorioTecnico, setRelatorioTecnico] = useState("");
   const [previsaoExecucao, setPrevisaoExecucao] = useState("");
   const [datasExecucao, setDatasExecucao] = useState<string[]>([]);
@@ -277,13 +280,18 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
 
   const salvar = useCallback(async () => {
     if (mode === "create" && !clienteChave) { alert("Selecione o Cliente"); return; }
+    if (status === "Cancelada" && !motivoCancel.trim()) { alert("Informe o motivo do cancelamento"); return; }
+    if (status === "Cancelada" && temSubstituto && !substitutoId.trim()) { alert("Informe o ID do substituto"); return; }
     setSaving(true);
     const dados = {
       id: osId, nomeCliente: clienteInfo?.nome, cpfCliente: clienteInfo?.cpf,
       enderecoCliente: clienteInfo?.endereco, cidadeCliente: clienteInfo?.cidade || '', tecnicoResponsavel: tecnico1, tecnico2,
       tipoServico, revisao, projeto, servicoSolicitado: servSolicitado,
       qtdHoras, qtdKm, ppv, status: mode === "create" ? "Orçamento" : status,
-      ordemOmie, motivoCancelamento: motivoCancel, descontoValor: descValor, descontoHora: descHoraValor, descontoKm: descKmValor,
+      ordemOmie, motivoCancelamento: motivoCancel,
+      substitutoTipo: temSubstituto ? substitutoTipo : null,
+      substitutoId: temSubstituto ? substitutoId : null,
+      descontoValor: descValor, descontoHora: descHoraValor, descontoKm: descKmValor,
       relatorioTecnico, previsaoExecucao, datasExecucaoExtras: datasExecucao.filter(d => d), previsaoFaturamento,
       gerarPPV: mode === "create" && tipoServico === "Revisão" && gerarPPV,
       userName,
@@ -318,7 +326,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
     setTecnico1(""); setTecnico2(""); setTipoServico("Manutenção");
     setProjeto(""); setRevisao(""); setServSolicitado(TEXT_TEMPLATE);
     setPpv(""); setQtdHoras(1); setQtdKm(0); setDescPorc(0); setDescValor(0); setDescHoraValor(0); setDescKmValor(0);
-    setOrdemOmie(""); setMotivoCancel(""); setRelatorioTecnico("");
+    setOrdemOmie(""); setMotivoCancel(""); setTemSubstituto(false); setSubstitutoTipo("POS"); setSubstitutoId("");
+    setRelatorioTecnico("");
     setPrevisaoExecucao(""); setDatasExecucao([]); setPrevisaoFaturamento("");
     setEstimativa(null); setErroEstimativa(""); setLoadingEstimativa(false); setEnderecoEstimativa(""); setEnderecosDisponiveis([]);
     setProdutos([]); setTotalPecas(0); setShowLogs(false); setRequisicoes([]);
@@ -364,6 +373,9 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
           const sub = (d.qtdHoras || 0) * VALOR_HORA + (d.qtdKm || 0) * VALOR_KM;
           setDescPorc(sub > 0 ? parseFloat(((dv / sub) * 100).toFixed(2)) : 0);
           setOrdemOmie(d.ordemOmie || ""); setMotivoCancel(d.motivoCancelamento || "");
+          setTemSubstituto(!!(d.substitutoTipo && d.substitutoId));
+          setSubstitutoTipo(d.substitutoTipo || "POS");
+          setSubstitutoId(d.substitutoId || "");
           setRelatorioTecnico(d.relatorioTecnico || "");
           setPrevisaoExecucao(d.previsaoExecucao || "");
           setDatasExecucao(d.datasExecucaoExtras || []);
@@ -548,8 +560,21 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                       )}
                       {status === "Cancelada" && (
                         <div style={S_MT12}>
-                          <label>Motivo do Cancelamento</label>
-                          <textarea rows={2} value={motivoCancel} onChange={(e) => setMotivoCancel(e.target.value)} style={S_MB0} />
+                          <label>Motivo do Cancelamento *</label>
+                          <textarea rows={2} value={motivoCancel} onChange={(e) => setMotivoCancel(e.target.value)} placeholder="Descreva o motivo do cancelamento..." style={{ marginBottom: 12 }} />
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: temSubstituto ? 10 : 0 }}>
+                            <input type="checkbox" id="temSubstituto" checked={temSubstituto} onChange={(e) => { setTemSubstituto(e.target.checked); if (!e.target.checked) { setSubstitutoId(""); } }} />
+                            <label htmlFor="temSubstituto" style={{ margin: 0, fontWeight: 600, cursor: "pointer" }}>Tem substituto?</label>
+                          </div>
+                          {temSubstituto && (
+                            <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
+                              <select value={substitutoTipo} onChange={(e) => { setSubstitutoTipo(e.target.value as "POS" | "PPV"); setSubstitutoId(""); }} style={{ width: 100, fontWeight: 600 }}>
+                                <option value="POS">POS</option>
+                                <option value="PPV">PPV</option>
+                              </select>
+                              <input type="text" value={substitutoId} onChange={(e) => setSubstitutoId(e.target.value)} placeholder={substitutoTipo === "POS" ? "Ex: OS-0001" : "Ex: PPV-0001"} style={{ flex: 1, fontWeight: 600, marginBottom: 0 }} />
+                            </div>
+                          )}
                         </div>
                       )}
                       {!ordemOmie && (

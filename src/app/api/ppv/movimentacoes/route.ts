@@ -3,6 +3,7 @@ import { supabaseFetch, formatarDataBR } from "@/lib/ppv/supabase";
 import { TBL_ITENS } from "@/lib/ppv/constants";
 import { buscarPPVPorId, atualizarValorTotal, registrarLog } from "@/lib/ppv/queries";
 import { movimentacaoSchema } from "@/lib/ppv/schemas";
+import { logAndNotify } from "@/lib/server/audit-notify";
 
 export async function POST(req: NextRequest) {
   try {
@@ -30,8 +31,18 @@ export async function POST(req: NextRequest) {
     const logMsg = dados.tipoMovimento === "Devolução"
       ? `Devolveu item: ${dados.quantidade} un de ${dados.codigo}`
       : `Adicionou item: ${dados.quantidade} un de ${dados.codigo}`;
-    await registrarLog(dados.id, logMsg);
+    const userNameLog = dados.userName || "Sistema";
+    await registrarLog(dados.id, logMsg, userNameLog);
     await atualizarValorTotal(dados.id);
+
+    await logAndNotify({
+      userName: userNameLog, sistema: "ppv", acao: dados.tipoMovimento === "Devolução" ? "devolver" : "adicionar_item",
+      entidade: "pedido", entidadeId: dados.id, entidadeLabel: `PPV ${dados.id}`,
+      detalhes: { codigo: dados.codigo, quantidade: dados.quantidade, tipo: dados.tipoMovimento },
+      notifTitulo: `PPV ${dados.id}: ${dados.tipoMovimento}`,
+      notifDescricao: `${userNameLog} ${dados.tipoMovimento === "Devolução" ? "devolveu" : "adicionou"} ${dados.quantidade}x ${dados.codigo}`,
+      notifLink: `/ppv?id=${dados.id}`,
+    });
 
     const detalhes = await buscarPPVPorId(dados.id);
     return NextResponse.json(detalhes);

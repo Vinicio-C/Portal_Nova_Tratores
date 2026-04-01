@@ -83,7 +83,7 @@ export default function TemplatePDF({ req }: { req: any, onUpdate?: any, onPrint
 
   if (!req) return null;
 
-  const unidade = (req.tipo === 'Frota-Veículos' || req.setor?.includes('Fartura')) ? UNIDADES.castro : UNIDADES.nova;
+  const unidade = (req.tipo === 'Frota-Veiculos' || req.setor?.includes('Fartura')) ? UNIDADES.castro : UNIDADES.nova;
   const dataFormatada = req.data ? new Date(req.data).toLocaleDateString('pt-BR') : '___/___/_____';
   const dataCriacao = req.created_at ? new Date(req.created_at).toLocaleString('pt-BR') : '---';
   const dataFinanceiro = req.enviado_financeiro_data ? new Date(req.enviado_financeiro_data).toLocaleDateString('pt-BR') : '---';
@@ -148,10 +148,10 @@ export default function TemplatePDF({ req }: { req: any, onUpdate?: any, onPrint
         </div>
 
         {/* BLOCO TÉCNICO CONDICIONAL ATUALIZADO */}
-        {(req.tipo === 'Frota-Veículos' || req.setor === 'Trator-Cliente' || req.setor === 'Trator-Loja' || req.tipo === 'Ferramenta') && (
+        {(req.tipo === 'Frota-Veiculos' || req.setor === 'Trator-Cliente' || req.setor === 'Trator-Loja' || req.tipo === 'Ferramenta') && (
           <div className="border-2 border-black rounded-2xl overflow-hidden mb-4 shadow-sm">
             <div className={`grid grid-cols-4 divide-x-2 divide-black uppercase ${req.setor === 'Trator-Cliente' ? 'border-b-2 border-black' : ''}`}>
-                {req.tipo === 'Frota-Veículos' ? (
+                {req.tipo === 'Frota-Veiculos' ? (
                   <>
                     <div className="p-3 col-span-2">
                       <label className="text-[10px] font-black block mb-1">Equipamento / Veículo (Placa)</label>

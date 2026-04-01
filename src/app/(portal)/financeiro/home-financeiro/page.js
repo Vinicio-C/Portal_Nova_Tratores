@@ -422,6 +422,9 @@ function HomeFinanceiroContent() {
           </div>
           <div style={{ padding: '24px', background: '#ffffff' }}>
             <div style={miniTagStyle}><CreditCard size={14}/> {t.metodo?.toUpperCase() || 'DESPESA'}</div>
+            {t.metodo === 'Carnê ISS' && (
+              <div style={{ marginTop: '8px', display: 'inline-block', background: '#fef3c7', color: '#92400e', fontSize: '11px', fontWeight: '700', padding: '4px 10px', borderRadius: '6px', border: '1px solid #fcd34d', letterSpacing: '0.5px' }}>CARNÊ ISS</div>
+            )}
             <div style={{fontSize:'26px', color:'#0f172a', margin: '15px 0 5px 0', fontWeight: '600'}}>{formatarMoeda(t.valor)}</div>
             <div style={{fontSize:'14px', color: '#64748b', textTransform:'uppercase', letterSpacing:'1px'}}>Venc: {formatarData(t.data_vencimento)}</div>
           </div>
@@ -530,7 +533,8 @@ function HomeFinanceiroContent() {
 
         {/* DISTRIBUIÇÃO ESPECÍFICA PARA PAGAR/RECEBER */}
         {tarefaSelecionada.gTipo === 'pagar' && (
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'30px', padding:'45px', background:'#f8fafc', border:'1px solid #e5e7eb', marginBottom:'45px' }}>
+            <div style={{ display:'flex', flexDirection:'column', gap:'24px', padding:'40px', background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'16px', marginBottom:'45px' }}>
+                {tarefaSelecionada.metodo !== 'Carnê ISS' && (
                 <div style={fieldBoxInner}>
                     <label style={labelMStyle}>NÚMERO DA NOTA FISCAL</label>
                     <input
@@ -540,12 +544,14 @@ function HomeFinanceiroContent() {
                         onBlur={e => handleUpdateField(tarefaSelecionada, 'numero_NF', e.target.value)}
                     />
                 </div>
-                <div style={{gridColumn:'span 2', ...fieldBoxInner}}>
-                    <label style={labelMStyle}>DESCRIÇÃO DETALHADA / OBSERVAÇÕES</label>
+                )}
+                <div style={fieldBoxInner}>
+                    <label style={{...labelMStyle, display:'flex', alignItems:'center', gap:'8px', marginBottom:'14px'}}>DESCRIÇÃO / OBSERVAÇÕES</label>
                     <textarea
-                        style={{...inputStyleLight, height:'120px', resize: 'none'}}
+                        style={{...inputStyleLight, minHeight:'180px', resize:'vertical', lineHeight:'1.7', fontSize:'15px', padding:'18px 20px', fontFamily:'Montserrat, sans-serif'}}
                         defaultValue={tarefaSelecionada.motivo}
                         onBlur={e => handleUpdateField(tarefaSelecionada, 'motivo', e.target.value)}
+                        placeholder="Detalhes do pagamento, observações relevantes..."
                     />
                 </div>
             </div>

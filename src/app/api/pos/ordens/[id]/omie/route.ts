@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/pos/supabase";
 import { TBL_OS, TBL_LOGS_PPO } from "@/lib/pos/constants";
 import { criarOSNoOmie } from "@/lib/pos/omie";
+import { logAndNotify } from "@/lib/server/audit-notify";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: idOs } = await params;
@@ -27,6 +28,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       acao: acaoParts.join(" | "),
       Status_Anterior: "Enviado", Status_Atual: "Concluída",
       Dias_Na_Fase: 0, Total_Dias_Aberto: 0,
+    });
+
+    await logAndNotify({
+      userName, sistema: "pos", acao: "enviar_omie",
+      entidade: "ordem_servico", entidadeId: idOs, entidadeLabel: `OS ${idOs}`,
+      detalhes: { cNumOS: result.cNumOS, pedidoVenda: result.pedidoVenda },
+      notifTitulo: `OS ${idOs} enviada para Omie`,
+      notifDescricao: `${userName} enviou OS ${idOs} para Omie (nº ${result.cNumOS})`,
+      notifLink: `/pos?id=${idOs}`,
     });
   }
 

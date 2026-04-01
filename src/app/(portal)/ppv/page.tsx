@@ -23,6 +23,7 @@ import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 
 function PPVApp() {
   const { kanbanItems, carregarKanban, atualizarKanbanLocal, toast, hideToast, globalLoading, cacheProduct, showToast, tecnicos } = usePPV();
+  const { userProfile } = useAuth();
   const searchParams = useSearchParams();
 
   // Refresh ao voltar para a aba
@@ -58,6 +59,7 @@ function PPVApp() {
         osId: detalhes.osId || "",
         tipoPedido: detalhes.tipoPedido || "",
         motivoSaida: detalhes.motivoSaida || "",
+        userName: userProfile?.nome || "",
       });
       showToast("success", `PPV #${id} movido para "${newStatus}"`);
     } catch {
@@ -87,6 +89,10 @@ function PPVApp() {
   const [produtoManualOpen, setProdutoManualOpen] = useState(false);
   const [produtoManualEdit, setProdutoManualEdit] = useState<{ id: string; codigo: string; descricao: string; preco: number } | null>(null);
 
+  // Sync produtos
+  const [syncingProdutos, setSyncingProdutos] = useState(false);
+  const [syncResult, setSyncResult] = useState<string | null>(null);
+
   // Form fields
   const [clienteValue, setClienteValue] = useState("");
   const [osIdValue, setOsIdValue] = useState("");
@@ -97,6 +103,7 @@ function PPVApp() {
   const [modalOSId, setModalOSId] = useState("");
   const [modalOSDisplay, setModalOSDisplay] = useState("");
   const [modalProdDisplay, setModalProdDisplay] = useState("");
+  const [modalProdCodigo, setModalProdCodigo] = useState("");
 
   // Modal cliente field
   const [modalClienteNome, setModalClienteNome] = useState("");
@@ -134,11 +141,14 @@ function PPVApp() {
     setBuscaProdutoOpen(true);
   }
 
-  function handleSelectProduto(codigo: string, descricao: string, preco: number) {
-    cacheProduct(codigo, descricao, preco);
+  function handleSelectProduto(codigo: string, descricao: string, preco: number, empresa?: string) {
+    cacheProduct(codigo, descricao, preco, empresa);
     const display = `${codigo} - ${descricao}`;
     if (prodContext.current === "main") setProdutoDisplay(display);
-    else if (prodContext.current === "modal") setModalProdDisplay(display);
+    else if (prodContext.current === "modal") {
+      setModalProdDisplay(display);
+      setModalProdCodigo(codigo);
+    }
   }
 
   function handleEditManual(id: number, codigo: string, descricao: string, preco: number) {
@@ -235,6 +245,43 @@ function PPVApp() {
           >
             <i className="fas fa-edit" /> Editar Produto
           </button>
+          <button
+            className="ppv-topbar-action-btn secondary"
+            disabled={syncingProdutos}
+            onClick={async () => {
+              setSyncingProdutos(true);
+              setSyncResult(null);
+              try {
+                const res = await fetch('/api/ppv/sync-produtos', { method: 'POST' });
+                const data = await res.json();
+                if (data.sucesso) {
+                  setSyncResult(`Sincronizado! ${data.total} produtos atualizados.`);
+                } else {
+                  setSyncResult(`Erro: ${data.erro || 'Falha na sincronização'}`);
+                }
+              } catch {
+                setSyncResult('Erro de conexão ao sincronizar produtos.');
+              } finally {
+                setSyncingProdutos(false);
+                setTimeout(() => setSyncResult(null), 6000);
+              }
+            }}
+            style={{ position: 'relative' }}
+          >
+            <i className={`fas fa-sync-alt ${syncingProdutos ? 'fa-spin' : ''}`} />
+            {syncingProdutos ? ' Sincronizando...' : ' Sync Preços Omie'}
+            {syncResult && (
+              <span style={{
+                position: 'absolute', top: '110%', right: 0, whiteSpace: 'nowrap',
+                background: syncResult.startsWith('Erro') ? '#FEE2E2' : '#D1FAE5',
+                color: syncResult.startsWith('Erro') ? '#DC2626' : '#065F46',
+                fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 6,
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)', zIndex: 50,
+              }}>
+                {syncResult}
+              </span>
+            )}
+          </button>
         </div>
       </div>
 
@@ -293,7 +340,8 @@ function PPVApp() {
         onBuscaProduto={() => handleBuscaProduto("modal")} onBuscaOS={() => handleBuscaOS("modal")}
         onBuscaCliente={() => handleBuscaCliente("modal")}
         modalOSId={modalOSId} modalOSDisplay={modalOSDisplay}
-        modalProdDisplay={modalProdDisplay} onModalProdDisplayChange={setModalProdDisplay}
+        modalProdDisplay={modalProdDisplay} modalProdCodigo={modalProdCodigo}
+        onModalProdDisplayChange={(v) => { setModalProdDisplay(v); if (!v) setModalProdCodigo(""); }}
         onSetModalOS={handleSetModalOS}
         modalClienteNome={modalClienteNome}
         onDirty={markDrawerDirty}

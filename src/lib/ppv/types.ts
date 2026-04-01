@@ -73,6 +73,8 @@ export interface PPVDetalhes {
   valor: number;
   observacao: string;
   motivoCancelamento: string;
+  substitutoTipo: string | null;
+  substitutoId: string | null;
   motivoSaida: string;
   pedidoOmie: string;
   usuEmail: string;

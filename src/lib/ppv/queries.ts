@@ -31,6 +31,8 @@ export async function buscarPPVPorId(id: string): Promise<PPVDetalhes | null> {
     valor: parseFloat(String(getValorInsensivel(d, "valor_total") || 0)),
     observacao: String(getValorInsensivel(d, "observacao") || ""),
     motivoCancelamento: String(getValorInsensivel(d, "motivo_cancelamento") || ""),
+    substitutoTipo: String(getValorInsensivel(d, "substituto_tipo") || "") || null,
+    substitutoId: String(getValorInsensivel(d, "substituto_id") || "") || null,
     motivoSaida: String(getValorInsensivel(d, "Motivo_Saida_Pedido") || ""),
     pedidoOmie: String(getValorInsensivel(d, "pedido_omie") || ""),
     usuEmail: String(getValorInsensivel(d, "email_usuario") || ""),

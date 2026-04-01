@@ -3,6 +3,7 @@ import { supabase } from "@/lib/pos/supabase";
 import { TBL_OS, TBL_LOGS_PPO } from "@/lib/pos/constants";
 import { safeGet } from "@/lib/pos/utils";
 import { sincronizarStatusPPV } from "@/lib/pos/sync-ppv";
+import { logAndNotify } from "@/lib/server/audit-notify";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: idOs } = await params;
@@ -40,6 +41,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   // Sincroniza status do PPV vinculado
   await sincronizarStatusPPV(idOs, newStatus);
+
+  await logAndNotify({
+    userName: userName || "Sistema", sistema: "pos", acao: "mover_status",
+    entidade: "ordem_servico", entidadeId: idOs, entidadeLabel: `OS ${idOs}`,
+    detalhes: { de: statusAnterior, para: newStatus },
+    notifTitulo: `OS ${idOs}: ${statusAnterior} → ${newStatus}`,
+    notifDescricao: `${userName || "Sistema"} moveu OS ${idOs} para ${newStatus}`,
+    notifLink: `/pos?id=${idOs}`,
+  });
 
   return NextResponse.json({ success: true, changed: true });
 }

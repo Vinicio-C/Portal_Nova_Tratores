@@ -3,6 +3,7 @@ import { supabase } from "@/lib/pos/supabase";
 import { TBL_OS, TBL_LOGS_PPO, TBL_METRICAS, VALOR_HORA, VALOR_KM, TBL_ITENS, TBL_REQ_ATT, TBL_PEDIDOS, FASES_CONTADOR_PARADO } from "@/lib/pos/constants";
 import { formatarDataBR, safeGet } from "@/lib/pos/utils";
 import { sincronizarStatusPPV } from "@/lib/pos/sync-ppv";
+import { logAndNotify } from "@/lib/server/audit-notify";
 import type { KanbanCard } from "@/lib/pos/types";
 
 /* ── Auto-move: verifica datas de previsão e move ordens automaticamente ── */
@@ -323,6 +324,14 @@ export async function POST(req: NextRequest) {
   if (ppvGerado) {
     await registrarLog(newId, `PPV ${ppvGerado} gerado automaticamente`, "Orçamento", null, userNameLog);
   }
+
+  await logAndNotify({
+    userName: userNameLog, sistema: "pos", acao: "criar",
+    entidade: "ordem_servico", entidadeId: newId, entidadeLabel: `OS ${newId} - ${dados.nomeCliente}`,
+    notifTitulo: `Nova OS criada: ${newId}`,
+    notifDescricao: `${userNameLog} criou OS ${newId} para ${dados.nomeCliente}`,
+    notifLink: `/pos?id=${newId}`,
+  });
 
   // Criar entradas na agenda_tecnico para cada data de execução
   const todasDatas: string[] = [];

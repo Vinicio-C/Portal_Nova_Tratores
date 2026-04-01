@@ -34,6 +34,9 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
   const [osBusca, setOsBusca] = useState('');
   const [osDropdownOpen, setOsDropdownOpen] = useState(false);
   const osDropdownRef = useRef<HTMLDivElement>(null);
+  const [fornBusca, setFornBusca] = useState('');
+  const [fornDropdownOpen, setFornDropdownOpen] = useState(false);
+  const fornDropdownRef = useRef<HTMLDivElement>(null);
 
   const fornecedoresBanco = dadosCompartilhados?.fornecedores || [];
   const usuariosBanco = dadosCompartilhados?.usuarios || [];
@@ -74,10 +77,16 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
       .then(({ data }) => { if (data) setOrdensAbertas(data); });
   }, [modalAberto, ordensAbertas.length]);
 
-  // Fechar dropdown OS ao clicar fora
+  // Inicializa busca do fornecedor com valor existente
+  useEffect(() => {
+    if (req.fornecedor && !fornBusca) setFornBusca(req.fornecedor);
+  }, [req.fornecedor]);
+
+  // Fechar dropdowns ao clicar fora
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (osDropdownRef.current && !osDropdownRef.current.contains(e.target as Node)) setOsDropdownOpen(false);
+      if (fornDropdownRef.current && !fornDropdownRef.current.contains(e.target as Node)) setFornDropdownOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -477,7 +486,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                   )}
 
                   {/* CAMPOS CONDICIONAIS - Frota */}
-                  {localData.tipo === 'Frota-Veículos' && (
+                  {['Frota-Veiculos', 'Veicular Abastecimento', 'Veicular Manutenção'].includes(localData.tipo) && (
                     <div className="border border-red-200 bg-red-500/5 rounded-xl p-4">
                       <span className="text-[11px] font-bold text-red-600 uppercase tracking-wider block mb-3">Frota</span>
                       <div className="grid grid-cols-2 gap-3">
@@ -509,12 +518,39 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                 <div className="space-y-5">
                   {/* Fornecedor + NF */}
                   <div className="grid grid-cols-2 gap-3">
-                    <div>
+                    <div ref={fornDropdownRef} className="relative">
                       <label className={labelBase}><Store size={11}/> Fornecedor</label>
-                      <select value={localData.fornecedor || ''} onChange={e => persist('fornecedor', e.target.value)} className={selectBase}>
-                        <option value="">Selecionar...</option>
-                        {fornecedoresBanco.map((f: any, i: number) => <option key={`${f.nome}-${i}`} value={f.nome}>{f.nome}</option>)}
-                      </select>
+                      <input
+                        type="text"
+                        value={fornBusca}
+                        onChange={e => { setFornBusca(e.target.value); setFornDropdownOpen(true); }}
+                        onFocus={() => setFornDropdownOpen(true)}
+                        placeholder="Pesquisar fornecedor..."
+                        className={inputBase}
+                      />
+                      {fornDropdownOpen && (
+                        <div className="absolute z-[70] mt-1 w-full bg-white border border-zinc-200 rounded-xl shadow-xl max-h-52 overflow-auto">
+                          {localData.fornecedor && (
+                            <button type="button" onClick={() => { persist('fornecedor', ''); setFornBusca(''); setFornDropdownOpen(false); }}
+                              className="w-full px-4 py-2 text-left text-xs text-red-500 hover:bg-red-50 border-b border-zinc-100">
+                              ✕ Remover seleção
+                            </button>
+                          )}
+                          {fornecedoresBanco
+                            .filter((f: any) => f.nome?.toLowerCase().includes(fornBusca.toLowerCase()))
+                            .map((f: any, i: number) => (
+                              <button type="button" key={`${f.nome}-${i}`}
+                                onClick={() => { persist('fornecedor', f.nome); setFornBusca(f.nome); setFornDropdownOpen(false); }}
+                                className={`w-full px-4 py-2.5 text-left text-sm hover:bg-zinc-50 border-b border-zinc-50 ${localData.fornecedor === f.nome ? 'bg-red-50 font-semibold' : 'text-zinc-700'}`}>
+                                {f.nome}
+                              </button>
+                            ))
+                          }
+                          {fornecedoresBanco.filter((f: any) => f.nome?.toLowerCase().includes(fornBusca.toLowerCase())).length === 0 && (
+                            <p className="px-4 py-3 text-xs text-zinc-400 text-center">Nenhum fornecedor encontrado</p>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <div>
                       <label className={labelBase}><Receipt size={11}/> Nota Fiscal</label>
@@ -525,13 +561,15 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                   {/* Valor da Despesa - destaque */}
                   <div className="bg-red-50 border border-red-200 rounded-xl p-5">
                     <label className="text-[11px] font-bold text-red-600 uppercase tracking-wider block mb-2">Custo Real da Despesa</label>
-                    <div className="flex items-center gap-2">
-                      <span className="text-red-600 text-lg font-bold">R$</span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-red-600 text-xl font-bold select-none">R$</span>
                       <input
+                        type="text"
+                        inputMode="decimal"
                         value={localData.valor_despeza || ''}
                         onChange={e => setField('valor_despeza', e.target.value)}
                         onBlur={e => persist('valor_despeza', e.target.value)}
-                        className="w-full text-3xl font-bold text-red-700 bg-transparent outline-none placeholder:text-red-300"
+                        className="w-full text-2xl font-bold text-red-700 bg-white border border-red-200 rounded-lg px-4 py-3 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/20 transition-all placeholder:text-red-300"
                         placeholder="0,00"
                       />
                     </div>

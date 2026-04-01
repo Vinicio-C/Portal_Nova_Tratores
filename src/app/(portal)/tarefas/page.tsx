@@ -72,6 +72,7 @@ function TarefasPageInner() {
   const [showCreate, setShowCreate] = useState(false)
   const [search, setSearch] = useState('')
   const [showConcluidas, setShowConcluidas] = useState(false)
+  const [tarefaAberta, setTarefaAberta] = useState<Tarefa | null>(null)
 
   const carregarTudo = useCallback(async () => {
     if (!userProfile?.id) return
@@ -239,11 +240,83 @@ function TarefasPageInner() {
                 tarefa={t}
                 onToggleDone={() => marcarConcluida(t.id, !t.concluida)}
                 showAssignee={tab === 'enviadas'}
+                onClick={() => setTarefaAberta(t)}
               />
             ))}
           </div>
         )}
       </div>
+
+      {tarefaAberta && (
+        <div style={{ position:'fixed', inset:0, zIndex:100, display:'flex', alignItems:'center', justifyContent:'center' }}>
+          <div onClick={() => setTarefaAberta(null)} style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0.5)', backdropFilter:'blur(6px)' }} />
+          <div style={{ position:'relative', background:'#fff', borderRadius:'20px', width:'100%', maxWidth:'600px', padding:'36px', boxShadow:'0 20px 60px rgba(0,0,0,0.15)', maxHeight:'90vh', overflowY:'auto' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'24px' }}>
+              <div style={{ flex:1 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:'10px', flexWrap:'wrap', marginBottom:'8px' }}>
+                  <span style={{ fontSize:'11px', fontWeight:'600', color: STATUS_MAP[tarefaAberta.computed_status].color, background: STATUS_MAP[tarefaAberta.computed_status].bg, padding:'4px 12px', borderRadius:'8px', textTransform:'uppercase', display:'inline-flex', alignItems:'center', gap:'4px' }}>
+                    {(() => { const I = STATUS_MAP[tarefaAberta.computed_status].icon; return <I size={12} />; })()}
+                    {STATUS_MAP[tarefaAberta.computed_status].label}
+                  </span>
+                  {tarefaAberta.prioridade > 0 && (() => {
+                    const p = PRIORITY_MAP[tarefaAberta.prioridade] || PRIORITY_MAP[0]
+                    return <span style={{ fontSize:'11px', fontWeight:'600', color:p.color, background:p.bg, padding:'4px 12px', borderRadius:'8px', textTransform:'uppercase' }}>{p.label}</span>
+                  })()}
+                </div>
+                <h2 style={{ fontSize:'20px', fontWeight:'600', margin:0, color:'#1a1a1a', lineHeight:'1.4' }}>{tarefaAberta.titulo}</h2>
+              </div>
+              <button onClick={() => setTarefaAberta(null)} style={{ background:'#f5f5f5', border:'none', borderRadius:'10px', padding:'8px', cursor:'pointer', display:'flex', flexShrink:0, marginLeft:'16px' }}>
+                <X size={18} color="#737373" />
+              </button>
+            </div>
+
+            {tarefaAberta.descricao && (
+              <div style={{ background:'#fafafa', border:'1px solid #f0f0f0', borderRadius:'12px', padding:'20px', marginBottom:'24px' }}>
+                <label style={{ display:'block', fontSize:'11px', fontWeight:'600', color:'#a3a3a3', marginBottom:'10px', textTransform:'uppercase', letterSpacing:'0.5px' }}>Descrição</label>
+                <p style={{ fontSize:'14px', color:'#374151', lineHeight:'1.8', margin:0, whiteSpace:'pre-wrap', wordBreak:'break-word' }}>{tarefaAberta.descricao}</p>
+              </div>
+            )}
+
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'16px' }}>
+              {tarefaAberta.criador && (
+                <div style={{ background:'#fafafa', borderRadius:'10px', padding:'14px' }}>
+                  <label style={{ display:'block', fontSize:'11px', fontWeight:'600', color:'#a3a3a3', marginBottom:'6px', textTransform:'uppercase', letterSpacing:'0.5px' }}>Criada por</label>
+                  <span style={{ fontSize:'14px', color:'#1a1a1a', display:'flex', alignItems:'center', gap:'6px' }}><User size={14} color="#3b82f6" />{tarefaAberta.criador.nome}</span>
+                </div>
+              )}
+              {tarefaAberta.atribuido && (
+                <div style={{ background:'#fafafa', borderRadius:'10px', padding:'14px' }}>
+                  <label style={{ display:'block', fontSize:'11px', fontWeight:'600', color:'#a3a3a3', marginBottom:'6px', textTransform:'uppercase', letterSpacing:'0.5px' }}>Atribuída a</label>
+                  <span style={{ fontSize:'14px', color:'#1a1a1a', display:'flex', alignItems:'center', gap:'6px' }}><User size={14} color="#10b981" />{tarefaAberta.atribuido.nome}</span>
+                </div>
+              )}
+              {tarefaAberta.prazo && (
+                <div style={{ background:'#fafafa', borderRadius:'10px', padding:'14px' }}>
+                  <label style={{ display:'block', fontSize:'11px', fontWeight:'600', color:'#a3a3a3', marginBottom:'6px', textTransform:'uppercase', letterSpacing:'0.5px' }}>Prazo</label>
+                  <span style={{ fontSize:'14px', color: tarefaAberta.computed_status === 'atrasada' ? '#ef4444' : '#1a1a1a', display:'flex', alignItems:'center', gap:'6px' }}><Calendar size={14} />{formatDate(tarefaAberta.prazo)} ({formatDateRelative(tarefaAberta.prazo)})</span>
+                </div>
+              )}
+              <div style={{ background:'#fafafa', borderRadius:'10px', padding:'14px' }}>
+                <label style={{ display:'block', fontSize:'11px', fontWeight:'600', color:'#a3a3a3', marginBottom:'6px', textTransform:'uppercase', letterSpacing:'0.5px' }}>Criada em</label>
+                <span style={{ fontSize:'14px', color:'#1a1a1a' }}>{formatDate(tarefaAberta.created_at)}</span>
+              </div>
+            </div>
+
+            <div style={{ marginTop:'24px', display:'flex', justifyContent:'center' }}>
+              <button onClick={() => { marcarConcluida(tarefaAberta.id, !tarefaAberta.concluida); setTarefaAberta(null); }} style={{
+                padding:'12px 28px', borderRadius:'12px', border:'none',
+                background: tarefaAberta.concluida ? '#f59e0b' : '#10b981',
+                color:'#fff', fontSize:'14px', fontWeight:'600', cursor:'pointer',
+                display:'flex', alignItems:'center', gap:'8px',
+                boxShadow: `0 4px 12px ${tarefaAberta.concluida ? 'rgba(245,158,11,0.25)' : 'rgba(16,185,129,0.25)'}`,
+                transition:'all 0.2s'
+              }}>
+                <CheckCircle2 size={16} /> {tarefaAberta.concluida ? 'Reabrir Tarefa' : 'Marcar como Concluída'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showCreate && (
         <CriarTarefaModal
@@ -263,26 +336,28 @@ function TarefasPageInner() {
 
 // ==================== TAREFA CARD ====================
 
-function TarefaCard({ tarefa, onToggleDone, showAssignee }: {
+function TarefaCard({ tarefa, onToggleDone, showAssignee, onClick }: {
   tarefa: Tarefa
   onToggleDone: () => void
   showAssignee: boolean
+  onClick: () => void
 }) {
   const status = STATUS_MAP[tarefa.computed_status]
   const priority = PRIORITY_MAP[tarefa.prioridade] || PRIORITY_MAP[0]
   const StatusIcon = status.icon
 
   return (
-    <div style={{
+    <div onClick={onClick} style={{
       display: 'flex', alignItems: 'center', gap: '16px',
       padding: '18px 24px', background: '#fff',
       border: `1px solid ${tarefa.computed_status === 'atrasada' ? '#fecaca' : '#f0f0f0'}`,
       borderRadius: '14px',
       borderLeft: `4px solid ${status.color}`,
       transition: 'all 0.15s',
-      opacity: tarefa.concluida ? 0.6 : 1
+      opacity: tarefa.concluida ? 0.6 : 1,
+      cursor: 'pointer'
     }}>
-      <button onClick={onToggleDone} style={{
+      <button onClick={e => { e.stopPropagation(); onToggleDone(); }} style={{
         width: '28px', height: '28px', borderRadius: '8px', flexShrink: 0,
         border: tarefa.concluida ? 'none' : `2px solid ${status.color}`,
         background: tarefa.concluida ? status.color : 'transparent',

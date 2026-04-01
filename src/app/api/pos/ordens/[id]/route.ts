@@ -3,6 +3,7 @@ import { supabase } from "@/lib/pos/supabase";
 import { TBL_OS, TBL_LOGS_PPO, TBL_REQ_SOL, TBL_REQ_ATT, TBL_ITENS, VALOR_HORA, VALOR_KM } from "@/lib/pos/constants";
 import { formatarDataBR, safeGet } from "@/lib/pos/utils";
 import { sincronizarStatusPPV } from "@/lib/pos/sync-ppv";
+import { logAndNotify } from "@/lib/server/audit-notify";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: idOs } = await params;
@@ -71,6 +72,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     status: safeGet(row, "Status"), ppv: safeGet(row, "ID_PPV"),
     projeto: safeGet(row, "Projeto"), ordemOmie: safeGet(row, "Ordem_Omie"),
     motivoCancelamento: safeGet(row, "Motivo_Cancelamento"),
+    substitutoTipo: safeGet(row, "Substituto_Tipo") || null,
+    substitutoId: safeGet(row, "Substituto_Id") || null,
     relatorioTecnico: safeGet(row, "ID_Relatorio_Final"),
     infoRelatorio: safeGet(row, "ID_Relatorio_Final") ? { status: "OK", link: safeGet(row, "ID_Relatorio_Final") } : null,
     infoRequisicoes: requisicoes,
@@ -160,8 +163,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const campos = [
       { d: "tecnicoResponsavel", db: "Os_Tecnico", lbl: "Técnico" },
       { d: "tecnico2", db: "Os_Tecnico2", lbl: "Técnico 2" },
+      { d: "nomeCliente", db: "Os_Cliente", lbl: "Cliente" },
       { d: "projeto", db: "Projeto", lbl: "Projeto" },
       { d: "servicoSolicitado", db: "Serv_Solicitado", lbl: "Descrição Serviço" },
+      { d: "qtdHoras", db: "Qtd_HR", lbl: "Horas" },
+      { d: "qtdKm", db: "Qtd_KM", lbl: "KM" },
     ];
     for (const c of campos) {
       const valDb = String(safeGet(atual, c.db) || "").trim();
@@ -229,6 +235,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     Valor_Total: total, Status: dados.status, ID_PPV: dados.ppv,
     ID_Relatorio_Final: dados.relatorioTecnico, Projeto: dados.projeto,
     Ordem_Omie: dados.ordemOmie, Motivo_Cancelamento: dados.motivoCancelamento,
+    Substituto_Tipo: dados.substitutoTipo || null, Substituto_Id: dados.substitutoId || null,
     Desconto: desc,
     Desconto_Hora: descHora,
     Desconto_KM: descKm,
@@ -245,6 +252,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   await sincronizarStatusPPV(idOs, dados.status);
 
   // Sincronizar agenda_tecnico com datas de execução
+  // Só mexe nas datas da agenda se datasExecucaoExtras foi explicitamente enviado no payload
+  const datasEnviadas = 'datasExecucaoExtras' in dados;
   const todasDatas: string[] = [];
   if (dados.previsaoExecucao) todasDatas.push(dados.previsaoExecucao);
   if (Array.isArray(dados.datasExecucaoExtras)) {
@@ -277,10 +286,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       );
     }
 
-    // Remover datas que não estão mais na lista
-    const paraRemover = (agendaExistente || []).filter(a => !todasDatas.includes(a.data_agendada));
-    if (paraRemover.length > 0) {
-      await supabase.from('agenda_tecnico').delete().in('id', paraRemover.map(a => a.id));
+    // Remover datas que não estão mais na lista — só se datasExecucaoExtras foi enviado
+    if (datasEnviadas) {
+      const paraRemover = (agendaExistente || []).filter(a => !todasDatas.includes(a.data_agendada));
+      if (paraRemover.length > 0) {
+        await supabase.from('agenda_tecnico').delete().in('id', paraRemover.map(a => a.id));
+      }
     }
 
     // Atualizar técnico se mudou
@@ -288,10 +299,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (paraAtualizar.length > 0) {
       await supabase.from('agenda_tecnico').update({ tecnico_nome: tecNome, cliente: dados.nomeCliente || null, endereco: dados.enderecoCliente || null }).eq('id_ordem', idOs);
     }
-  } else if (todasDatas.length === 0) {
-    // Se não tem mais datas, remover todas as entradas da agenda para esta OS
+  } else if (todasDatas.length === 0 && datasEnviadas) {
+    // Se não tem mais datas E o campo foi explicitamente enviado, remover da agenda
     await supabase.from('agenda_tecnico').delete().eq('id_ordem', idOs);
   }
+
+  // Audit log + notificação para admins
+  const userNameLog = dados.userName || "Sistema";
+  await logAndNotify({
+    userName: userNameLog, sistema: "pos", acao: "editar",
+    entidade: "ordem_servico", entidadeId: idOs, entidadeLabel: `OS ${idOs} - ${dados.nomeCliente || ""}`,
+    notifTitulo: `OS ${idOs} atualizada`,
+    notifDescricao: `${userNameLog} editou a OS ${idOs}`,
+    notifLink: `/pos?id=${idOs}`,
+  });
 
   return NextResponse.json({ success: true });
 }

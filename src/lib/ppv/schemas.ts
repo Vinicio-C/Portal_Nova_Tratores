@@ -41,6 +41,8 @@ export const editarPedidoSchema = z.object({
   tipoPedido: z.string().optional().default(""),
   motivoSaida: z.string().optional().default(""),
   userName: z.string().optional().default(""),
+  substitutoTipo: z.string().nullable().optional().default(null),
+  substitutoId: z.string().nullable().optional().default(null),
 });
 
 export const movimentacaoSchema = z.object({
@@ -51,6 +53,7 @@ export const movimentacaoSchema = z.object({
   preco: z.number().min(0),
   tecnico: z.string().default(""),
   tipoMovimento: z.enum(["Saída", "Devolução"]),
+  userName: z.string().optional().default(""),
 });
 
 export const buscaTermoSchema = z.object({

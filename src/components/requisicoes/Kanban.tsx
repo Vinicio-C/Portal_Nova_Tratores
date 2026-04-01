@@ -25,6 +25,8 @@ export default function Kanban({ requisicoes, onUpdate, onPrint }: any) {
   const [filtroTitulo, setFiltroTitulo] = useState('');
   const [filtroFornecedor, setFiltroFornecedor] = useState('');
   const [filtroMes, setFiltroMes] = useState('');
+  const [filtroSolicitante, setFiltroSolicitante] = useState('');
+  const [filtroTipo, setFiltroTipo] = useState('');
   const [colunaArrastando, setColunaArrastando] = useState<string | null>(null);
   const [limitesPorColuna, setLimitesPorColuna] = useState<Record<string, number>>({});
   const CARDS_POR_VEZ = 20;
@@ -50,6 +52,16 @@ export default function Kanban({ requisicoes, onUpdate, onPrint }: any) {
     setColunaArrastando(null);
   };
 
+  const solicitantesParaFiltro = useMemo(() => {
+    const nomes = requisicoes.map((r: any) => r.solicitante).filter(Boolean);
+    return Array.from(new Set(nomes)).sort();
+  }, [requisicoes]);
+
+  const tiposParaFiltro = useMemo(() => {
+    const tipos = requisicoes.map((r: any) => r.tipo).filter(Boolean);
+    return Array.from(new Set(tipos)).sort();
+  }, [requisicoes]);
+
   const fornecedoresParaFiltro = useMemo(() => {
     const doBanco = requisicoes.map((r: any) => r.fornecedor).filter(Boolean);
     return Array.from(new Set([...LISTA_FORNECEDORES_CADASTRADOS, ...doBanco])).sort();
@@ -73,9 +85,11 @@ export default function Kanban({ requisicoes, onUpdate, onPrint }: any) {
       const matchTitulo = filtroTitulo ? r.titulo?.toLowerCase().includes(filtroTitulo.toLowerCase()) : true;
       const matchForn = filtroFornecedor ? r.fornecedor === filtroFornecedor : true;
       const matchMes = filtroMes ? r.data?.startsWith(filtroMes) : true;
-      return matchID && matchTitulo && matchForn && matchMes;
+      const matchSolic = filtroSolicitante ? r.solicitante === filtroSolicitante : true;
+      const matchTipo = filtroTipo ? r.tipo === filtroTipo : true;
+      return matchID && matchTitulo && matchForn && matchMes && matchSolic && matchTipo;
     });
-  }, [requisicoes, filtroID, filtroTitulo, filtroFornecedor, filtroMes]);
+  }, [requisicoes, filtroID, filtroTitulo, filtroFornecedor, filtroMes, filtroSolicitante, filtroTipo]);
 
   const filterInputStyle = "w-full bg-zinc-100/50 text-zinc-700 text-sm rounded-lg px-3 py-2.5 outline-none focus:ring-2 focus:ring-red-500/40 transition-all placeholder:text-zinc-400 appearance-none cursor-pointer border border-zinc-200";
 
@@ -85,7 +99,7 @@ export default function Kanban({ requisicoes, onUpdate, onPrint }: any) {
       {/* BARRA DE FILTROS */}
       <div className="w-full px-6 pt-6 pb-4">
         <div className="max-w-4xl mx-auto bg-white border border-zinc-200 p-4 rounded-xl">
-          <div className="grid grid-cols-[80px_1fr_1fr_1fr_auto] gap-3 items-center">
+          <div className="grid grid-cols-[80px_1fr_1fr_1fr_1fr_1fr_auto] gap-3 items-center">
 
             <div className="relative">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-red-600 pointer-events-none"/>
@@ -110,14 +124,36 @@ export default function Kanban({ requisicoes, onUpdate, onPrint }: any) {
             </div>
 
             <div className="relative">
+              <select
+                value={filtroSolicitante}
+                onChange={e => setFiltroSolicitante(e.target.value)}
+                className={filterInputStyle}
+              >
+                <option value="">Técnico</option>
+                {solicitantesParaFiltro.map((s: any) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+
+            <div className="relative">
+              <select
+                value={filtroTipo}
+                onChange={e => setFiltroTipo(e.target.value)}
+                className={filterInputStyle}
+              >
+                <option value="">Tipo</option>
+                {tiposParaFiltro.map((t: any) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+
+            <div className="relative">
               <Building2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none"/>
               <select
                 value={filtroFornecedor}
                 onChange={e => setFiltroFornecedor(e.target.value)}
                 className={`${filterInputStyle} pl-9`}
               >
-                <option value="" className="bg-zinc-50">Fornecedor</option>
-                {fornecedoresParaFiltro.map((f: any) => <option key={f} value={f} className="bg-zinc-50 uppercase">{f}</option>)}
+                <option value="">Fornecedor</option>
+                {fornecedoresParaFiltro.map((f: any) => <option key={f} value={f}>{f}</option>)}
               </select>
             </div>
 
@@ -128,13 +164,13 @@ export default function Kanban({ requisicoes, onUpdate, onPrint }: any) {
                 onChange={e => setFiltroMes(e.target.value)}
                 className={`${filterInputStyle} pl-9`}
               >
-                <option value="" className="bg-zinc-50">Período</option>
-                {mesesDisponiveis.map((m: any) => <option key={m.valor} value={m.valor} className="bg-zinc-50">{m.label.toUpperCase()}</option>)}
+                <option value="">Período</option>
+                {mesesDisponiveis.map((m: any) => <option key={m.valor} value={m.valor}>{m.label.toUpperCase()}</option>)}
               </select>
             </div>
 
-            {(filtroID || filtroTitulo || filtroFornecedor || filtroMes) ? (
-              <button onClick={() => {setFiltroID(''); setFiltroTitulo(''); setFiltroFornecedor(''); setFiltroMes('')}} className="h-full px-4 py-2.5 rounded-lg bg-red-50 text-red-400 hover:bg-red-500/20 text-xs font-bold uppercase tracking-wide transition-colors flex items-center gap-2">
+            {(filtroID || filtroTitulo || filtroFornecedor || filtroMes || filtroSolicitante || filtroTipo) ? (
+              <button onClick={() => {setFiltroID(''); setFiltroTitulo(''); setFiltroFornecedor(''); setFiltroMes(''); setFiltroSolicitante(''); setFiltroTipo('');}} className="h-full px-4 py-2.5 rounded-lg bg-red-50 text-red-400 hover:bg-red-500/20 text-xs font-bold uppercase tracking-wide transition-colors flex items-center gap-2">
                 <X size={14} /> Limpar
               </button>
             ) : <div />}
