@@ -15,6 +15,23 @@ export default function CardCapaReq({ req, onUpdate, onPrint, dadosCompartilhado
 
   const veioDoApp = req.origem === 'app_tecnico' || req.obs?.includes('[APPSHEET_ID:');
 
+  // Subtítulo contextual baseado no tipo
+  const subtituloContextual = useMemo(() => {
+    const tipo = (req.tipo || req.ReqTipo || '').toLowerCase();
+    const veiculos = dadosCompartilhados?.veiculos || [];
+    if (['frota-veiculos', 'veicular abastecimento', 'veicular manutenção'].includes(tipo) && req.veiculo) {
+      const v = veiculos.find((x: any) => String(x.IdPlaca) === String(req.veiculo));
+      return v?.NumPlaca || null;
+    }
+    if (tipo === 'ferramenta') {
+      return req.quem_ferramenta || req.ferramenta_quem || null;
+    }
+    if ((req.setor || '').toLowerCase().includes('trator') && (req.setor || '').toLowerCase().includes('cliente')) {
+      return req.cliente || null;
+    }
+    return null;
+  }, [req, dadosCompartilhados?.veiculos]);
+
   // Traduz email->nome usando dados locais
   const nomeExibicao = useMemo(() => {
     const usuarios = dadosCompartilhados?.usuarios || [];
@@ -65,7 +82,10 @@ export default function CardCapaReq({ req, onUpdate, onPrint, dadosCompartilhado
           </div>
           <div className="flex flex-col gap-1">
             <span className="text-xs font-medium text-red-600 uppercase tracking-[0.2em] bg-red-50 px-2 py-0.5 rounded-md self-start">{req.tipo || req.ReqTipo}</span>
-            <h4 className="text-[15px] font-normal text-zinc-700 leading-tight group-hover:text-red-600 transition-colors pr-8 line-clamp-2">{req.titulo}</h4>
+            <h4 className="text-[15px] font-normal text-zinc-700 leading-tight group-hover:text-red-600 transition-colors pr-8 line-clamp-2">
+              {req.titulo}
+              {subtituloContextual && <span className="text-zinc-400 font-light"> · {subtituloContextual}</span>}
+            </h4>
           </div>
         </div>
 

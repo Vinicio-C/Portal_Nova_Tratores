@@ -73,6 +73,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   const [temSubstituto, setTemSubstituto] = useState(false);
   const [substitutoTipo, setSubstitutoTipo] = useState<"POS" | "PPV">("POS");
   const [substitutoId, setSubstitutoId] = useState("");
+  const [listaOSAbertas, setListaOSAbertas] = useState<Array<{ id: string; cliente: string; status: string }>>([]);
+  const [listaPPVAbertos, setListaPPVAbertos] = useState<Array<{ id: string; cliente: string; status: string }>>([]);
   const [relatorioTecnico, setRelatorioTecnico] = useState("");
   const [previsaoExecucao, setPrevisaoExecucao] = useState("");
   const [datasExecucao, setDatasExecucao] = useState<string[]>([]);
@@ -110,6 +112,21 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   const [erroEstimativa, setErroEstimativa] = useState("");
   const [enderecoEstimativa, setEnderecoEstimativa] = useState("");
   const [enderecosDisponiveis, setEnderecosDisponiveis] = useState<{ label: string; fonte: string; endereco: string }[]>([]);
+
+  // Carregar listas para dropdown de substituto
+  useEffect(() => {
+    if (!temSubstituto) return;
+    if (substitutoTipo === "POS" && listaOSAbertas.length === 0) {
+      fetch("/api/pos/ordens").then(r => r.json()).then((data) => {
+        if (Array.isArray(data)) setListaOSAbertas(data.filter((o: any) => o.Status !== "Cancelada" && o.Status !== "Concluída" && String(o.Id_Ordem) !== osId).map((o: any) => ({ id: String(o.Id_Ordem), cliente: o.Os_Cliente || "", status: o.Status || "" })));
+      }).catch(() => {});
+    }
+    if (substitutoTipo === "PPV" && listaPPVAbertos.length === 0) {
+      fetch("/api/ppv/pedidos").then(r => r.json()).then((data) => {
+        if (Array.isArray(data)) setListaPPVAbertos(data.filter((p: any) => p.status !== "Cancelado" && p.status !== "Fechado").map((p: any) => ({ id: p.id, cliente: p.cliente || "", status: p.status || "" })));
+      }).catch(() => {});
+    }
+  }, [temSubstituto, substitutoTipo]);
 
   // ── Derived values (useMemo) ──
   const subtotalHoras = qtdHoras * VALOR_HORA;
@@ -572,7 +589,14 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                                 <option value="POS">POS</option>
                                 <option value="PPV">PPV</option>
                               </select>
-                              <input type="text" value={substitutoId} onChange={(e) => setSubstitutoId(e.target.value)} placeholder={substitutoTipo === "POS" ? "Ex: OS-0001" : "Ex: PPV-0001"} style={{ flex: 1, fontWeight: 600, marginBottom: 0 }} />
+                              <select value={substitutoId} onChange={(e) => setSubstitutoId(e.target.value)} style={{ flex: 1, fontWeight: 600, marginBottom: 0 }}>
+                                <option value="">Selecione...</option>
+                                {(substitutoTipo === "POS" ? listaOSAbertas : listaPPVAbertos).map((item) => (
+                                  <option key={item.id} value={item.id}>
+                                    {substitutoTipo === "POS" ? `OS ${item.id}` : item.id} - {item.cliente} ({item.status})
+                                  </option>
+                                ))}
+                              </select>
                             </div>
                           )}
                         </div>

@@ -11,9 +11,11 @@ interface PhaseViewProps {
   onCardClick: (id: string) => void;
   onStatusChange?: (id: string, newStatus: string) => void;
   loading?: boolean;
+  activePhase: string;
+  onPhaseChange: (phase: string) => void;
 }
 
-const PHASE_COLORS: Record<string, string> = {
+export const PHASE_COLORS: Record<string, string> = {
   Aguardando: "#C2410C",
   "Em Andamento": "#1D4ED8",
   "Aguardando Para Faturar": "#8B5CF6",
@@ -21,9 +23,9 @@ const PHASE_COLORS: Record<string, string> = {
   Cancelado: "#B91C1C",
 };
 
-const PHASES = STATUS_OPTIONS.map((s) => s.value);
+export const PHASES = STATUS_OPTIONS.map((s) => s.value);
 
-const PHASE_SHORT: Record<string, string> = {
+export const PHASE_SHORT: Record<string, string> = {
   Aguardando: "Aguardando",
   "Em Andamento": "Em Andamento",
   "Aguardando Para Faturar": "Aguar. Faturar",
@@ -113,8 +115,7 @@ function SkeletonCards() {
   );
 }
 
-export default function PhaseView({ orders, searchTerm, onCardClick, onStatusChange, loading }: PhaseViewProps) {
-  const [activePhase, setActivePhase] = useState<string>("");
+export default function PhaseView({ orders, searchTerm, onCardClick, onStatusChange, loading, activePhase, onPhaseChange }: PhaseViewProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set(COLLAPSED_DEFAULT));
 
   const toggleCollapse = (phase: string) => {
@@ -159,28 +160,6 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onStatusCha
 
   return (
     <>
-      {/* Phase tabs */}
-      <div className="ppv-phase-tabs">
-        <button
-          className={`ppv-phase-tab ${activePhase === "" ? "active" : ""}`}
-          onClick={() => setActivePhase("")}
-        >
-          Todas <span className="ppv-phase-tab-count">{orders.length}</span>
-        </button>
-        {PHASES.map((phase) => (
-          <button
-            key={phase}
-            className={`ppv-phase-tab ${activePhase === phase ? "active" : ""}`}
-            onClick={() => setActivePhase(activePhase === phase ? "" : phase)}
-            style={{ "--tab-color": PHASE_COLORS[phase] || "#64748B" } as React.CSSProperties}
-          >
-            <span className="ppv-phase-tab-dot" style={{ background: PHASE_COLORS[phase] }} />
-            {PHASE_SHORT[phase] || phase}
-            <span className="ppv-phase-tab-count">{counts[phase] || 0}</span>
-          </button>
-        ))}
-      </div>
-
       {/* Cards */}
       <main className="ppv-cards-wrapper">
         {loading ? (

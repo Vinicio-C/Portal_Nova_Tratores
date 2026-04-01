@@ -35,6 +35,7 @@ function PPVApp() {
   const [statusFilter, setStatusFilter] = useState("ATIVOS");
   const [tecnicoFilter, setTecnicoFilter] = useState("");
   const [clienteFilter, setClienteFilter] = useState("");
+  const [activePhase, setActivePhase] = useState("");
 
   // Lista de clientes únicos para filtro
   const clientesUnicos = useMemo(() => {
@@ -295,12 +296,14 @@ function PPVApp() {
             tecnicos={tecnicos}
             clienteFilter={clienteFilter} onClienteFilterChange={setClienteFilter}
             clientes={clientesUnicos}
+            orders={filteredKanban}
+            activePhase={activePhase} onPhaseChange={setActivePhase}
           />
         )}
 
         {activeTab === "kanbanTab" && (
           <div className="flex flex-1 flex-col overflow-auto" style={bgPattern}>
-            <PhaseView orders={filteredKanban} searchTerm={searchFilter} onCardClick={openCardDetails} onStatusChange={handleStatusChange} loading={globalLoading} />
+            <PhaseView orders={filteredKanban} searchTerm={searchFilter} onCardClick={openCardDetails} onStatusChange={handleStatusChange} loading={globalLoading} activePhase={activePhase} onPhaseChange={setActivePhase} />
           </div>
         )}
 

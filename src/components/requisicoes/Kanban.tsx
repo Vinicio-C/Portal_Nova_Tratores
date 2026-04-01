@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import CardCapaReq from './CardCapaReq';
 import { supabase } from '@/lib/supabase';
-import { Search, Calendar, Building2, X, Layout } from 'lucide-react';
+import { Search, Calendar, Building2, X, Layout, UserCircle, Layers, SlidersHorizontal } from 'lucide-react';
 
 const LISTA_FORNECEDORES_CADASTRADOS = ["Rodrigo Torneiro (Panda)"];
 
@@ -58,7 +58,8 @@ export default function Kanban({ requisicoes, onUpdate, onPrint }: any) {
   }, [requisicoes]);
 
   const tiposParaFiltro = useMemo(() => {
-    const tipos = requisicoes.map((r: any) => r.tipo).filter(Boolean);
+    const excluir = ['boleto', 'dinheiro'];
+    const tipos = requisicoes.map((r: any) => r.tipo).filter((t: string) => t && !excluir.includes(t.toLowerCase()));
     return Array.from(new Set(tipos)).sort();
   }, [requisicoes]);
 
@@ -91,90 +92,83 @@ export default function Kanban({ requisicoes, onUpdate, onPrint }: any) {
     });
   }, [requisicoes, filtroID, filtroTitulo, filtroFornecedor, filtroMes, filtroSolicitante, filtroTipo]);
 
-  const filterInputStyle = "w-full bg-zinc-100/50 text-zinc-700 text-sm rounded-lg px-3 py-2.5 outline-none focus:ring-2 focus:ring-red-500/40 transition-all placeholder:text-zinc-400 appearance-none cursor-pointer border border-zinc-200";
+  const temFiltroAtivo = filtroID || filtroTitulo || filtroFornecedor || filtroMes || filtroSolicitante || filtroTipo;
+  const limparFiltros = () => { setFiltroID(''); setFiltroTitulo(''); setFiltroFornecedor(''); setFiltroMes(''); setFiltroSolicitante(''); setFiltroTipo(''); };
+  const resultCount = filtradas.filter((r: any) => r.status !== 'lixeira').length;
+
+  const pillBase = "px-3 py-1.5 rounded-full text-[12px] font-semibold border transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap";
+  const pillActive = "bg-red-600 text-white border-red-600";
+  const pillInactive = "bg-white text-zinc-500 border-zinc-200 hover:border-red-300 hover:text-red-600";
+  const inputInline = "bg-white text-zinc-800 text-[13px] rounded-full px-3 py-1.5 outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-400 transition-all placeholder:text-zinc-400 border border-zinc-200";
+  const selectInline = `${inputInline} appearance-none cursor-pointer pr-7`;
 
   return (
     <div className="w-full bg-zinc-50 min-h-screen transition-all duration-700 pb-20">
 
-      {/* BARRA DE FILTROS */}
-      <div className="w-full px-6 pt-6 pb-4">
-        <div className="max-w-4xl mx-auto bg-white border border-zinc-200 p-4 rounded-xl">
-          <div className="grid grid-cols-[80px_1fr_1fr_1fr_1fr_1fr_auto] gap-3 items-center">
+      {/* BARRA DE FILTROS — inline compacta */}
+      <div className="w-full px-6 pt-4 pb-2">
+        <div className="flex items-center gap-2 flex-wrap">
 
-            <div className="relative">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-red-600 pointer-events-none"/>
-              <input
-                type="text"
-                placeholder="ID"
-                value={filtroID}
-                onChange={e => setFiltroID(e.target.value)}
-                className={`${filterInputStyle} pl-9 text-center`}
-              />
-            </div>
-
-            <div className="relative">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none"/>
-              <input
-                type="text"
-                placeholder="Buscar por título..."
-                value={filtroTitulo}
-                onChange={e => setFiltroTitulo(e.target.value)}
-                className={`${filterInputStyle} pl-9`}
-              />
-            </div>
-
-            <div className="relative">
-              <select
-                value={filtroSolicitante}
-                onChange={e => setFiltroSolicitante(e.target.value)}
-                className={filterInputStyle}
-              >
-                <option value="">Técnico</option>
-                {solicitantesParaFiltro.map((s: any) => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-
-            <div className="relative">
-              <select
-                value={filtroTipo}
-                onChange={e => setFiltroTipo(e.target.value)}
-                className={filterInputStyle}
-              >
-                <option value="">Tipo</option>
-                {tiposParaFiltro.map((t: any) => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
-
-            <div className="relative">
-              <Building2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none"/>
-              <select
-                value={filtroFornecedor}
-                onChange={e => setFiltroFornecedor(e.target.value)}
-                className={`${filterInputStyle} pl-9`}
-              >
-                <option value="">Fornecedor</option>
-                {fornecedoresParaFiltro.map((f: any) => <option key={f} value={f}>{f}</option>)}
-              </select>
-            </div>
-
-            <div className="relative">
-              <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none"/>
-              <select
-                value={filtroMes}
-                onChange={e => setFiltroMes(e.target.value)}
-                className={`${filterInputStyle} pl-9`}
-              >
-                <option value="">Período</option>
-                {mesesDisponiveis.map((m: any) => <option key={m.valor} value={m.valor}>{m.label.toUpperCase()}</option>)}
-              </select>
-            </div>
-
-            {(filtroID || filtroTitulo || filtroFornecedor || filtroMes || filtroSolicitante || filtroTipo) ? (
-              <button onClick={() => {setFiltroID(''); setFiltroTitulo(''); setFiltroFornecedor(''); setFiltroMes(''); setFiltroSolicitante(''); setFiltroTipo('');}} className="h-full px-4 py-2.5 rounded-lg bg-red-50 text-red-400 hover:bg-red-500/20 text-xs font-bold uppercase tracking-wide transition-colors flex items-center gap-2">
-                <X size={14} /> Limpar
-              </button>
-            ) : <div />}
+          {/* Busca por ID */}
+          <div className="relative">
+            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-red-500 pointer-events-none"/>
+            <input type="text" placeholder="ID" value={filtroID} onChange={e => setFiltroID(e.target.value)} className={`${inputInline} pl-8 w-[70px] text-center font-semibold`} />
           </div>
+
+          {/* Busca por título */}
+          <div className="relative flex-1 min-w-[200px] max-w-[320px]">
+            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none"/>
+            <input type="text" placeholder="Buscar título..." value={filtroTitulo} onChange={e => setFiltroTitulo(e.target.value)} className={`${inputInline} pl-8 w-full`} />
+          </div>
+
+          {/* Separador */}
+          <div className="w-px h-5 bg-zinc-200" />
+
+          {/* Técnico */}
+          <div className="relative">
+            <UserCircle size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none"/>
+            <select value={filtroSolicitante} onChange={e => setFiltroSolicitante(e.target.value)} className={`${selectInline} pl-7 ${filtroSolicitante ? '!border-red-400 !bg-red-50 !text-red-700' : ''}`}>
+              <option value="">Técnico</option>
+              {solicitantesParaFiltro.map((s: any) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+
+          {/* Tipo */}
+          <div className="relative">
+            <Layers size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none"/>
+            <select value={filtroTipo} onChange={e => setFiltroTipo(e.target.value)} className={`${selectInline} pl-7 ${filtroTipo ? '!border-red-400 !bg-red-50 !text-red-700' : ''}`}>
+              <option value="">Tipo</option>
+              {tiposParaFiltro.map((t: any) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+
+          {/* Fornecedor */}
+          <div className="relative">
+            <Building2 size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none"/>
+            <select value={filtroFornecedor} onChange={e => setFiltroFornecedor(e.target.value)} className={`${selectInline} pl-7 ${filtroFornecedor ? '!border-red-400 !bg-red-50 !text-red-700' : ''}`}>
+              <option value="">Fornecedor</option>
+              {fornecedoresParaFiltro.map((f: any) => <option key={f} value={f}>{f}</option>)}
+            </select>
+          </div>
+
+          {/* Período */}
+          <div className="relative">
+            <Calendar size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none"/>
+            <select value={filtroMes} onChange={e => setFiltroMes(e.target.value)} className={`${selectInline} pl-7 ${filtroMes ? '!border-red-400 !bg-red-50 !text-red-700' : ''}`}>
+              <option value="">Período</option>
+              {mesesDisponiveis.map((m: any) => <option key={m.valor} value={m.valor}>{m.label.toUpperCase()}</option>)}
+            </select>
+          </div>
+
+          {/* Contador + Limpar */}
+          {temFiltroAtivo && (
+            <>
+              <span className="text-[11px] font-bold text-red-600 bg-red-50 border border-red-200 px-2.5 py-1 rounded-full">{resultCount}</span>
+              <button onClick={limparFiltros} className={`${pillBase} ${pillActive}`}>
+                <X size={12} /> Limpar
+              </button>
+            </>
+          )}
         </div>
       </div>
 

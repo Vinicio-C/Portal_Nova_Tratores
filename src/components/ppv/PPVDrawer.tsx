@@ -50,6 +50,8 @@ export default function PPVDrawer({
   const [temSubstituto, setTemSubstituto] = useState(false);
   const [substitutoTipo, setSubstitutoTipo] = useState<"POS" | "PPV">("POS");
   const [substitutoId, setSubstitutoId] = useState("");
+  const [listaOSAbertas, setListaOSAbertas] = useState<Array<{ id: string; cliente: string; status: string }>>([]);
+  const [listaPPVAbertos, setListaPPVAbertos] = useState<Array<{ id: string; cliente: string; status: string }>>([]);
   const [pedidoOmie, setPedidoOmie] = useState("");
   const [qtdExtra, setQtdExtra] = useState(1);
   const [salvando, setSalvando] = useState(false);
@@ -65,6 +67,21 @@ export default function PPVDrawer({
   const [devolucaoOpen, setDevolucaoOpen] = useState(false);
   const [devolucaoProd, setDevolucaoProd] = useState<{ codigo: string; descricao: string; preco: number; max: number } | null>(null);
   const [confirmandoDev, setConfirmandoDev] = useState(false);
+
+  // Carregar listas para dropdown de substituto
+  useEffect(() => {
+    if (!temSubstituto) return;
+    if (substitutoTipo === "POS" && listaOSAbertas.length === 0) {
+      fetch("/api/pos/ordens").then(r => r.json()).then((data) => {
+        if (Array.isArray(data)) setListaOSAbertas(data.filter((o: any) => o.Status !== "Cancelada" && o.Status !== "Concluída").map((o: any) => ({ id: String(o.Id_Ordem), cliente: o.Os_Cliente || "", status: o.Status || "" })));
+      }).catch(() => {});
+    }
+    if (substitutoTipo === "PPV" && listaPPVAbertos.length === 0) {
+      fetch("/api/ppv/pedidos").then(r => r.json()).then((data) => {
+        if (Array.isArray(data)) setListaPPVAbertos(data.filter((p: any) => p.status !== "Cancelado" && p.status !== "Fechado" && p.id !== ppvId).map((p: any) => ({ id: p.id, cliente: p.cliente || "", status: p.status || "" })));
+      }).catch(() => {});
+    }
+  }, [temSubstituto, substitutoTipo]);
 
   const carregarDadosCliente = useCallback(async (nome: string) => {
     if (!nome) { setClienteDoc(""); setClienteEndereco(""); setClienteCidade(""); return; }
@@ -310,7 +327,14 @@ export default function PPVDrawer({
                               <option value="POS">POS</option>
                               <option value="PPV">PPV</option>
                             </select>
-                            <input type="text" value={substitutoId} onChange={(e) => setSubstitutoId(e.target.value)} placeholder={substitutoTipo === "POS" ? "Ex: OS-0001" : "Ex: PPV-0001"} style={{ flex: 1, fontWeight: 600, marginBottom: 0 }} />
+                            <select value={substitutoId} onChange={(e) => setSubstitutoId(e.target.value)} style={{ flex: 1, fontWeight: 600, marginBottom: 0 }}>
+                              <option value="">Selecione...</option>
+                              {(substitutoTipo === "POS" ? listaOSAbertas : listaPPVAbertos).map((item) => (
+                                <option key={item.id} value={item.id}>
+                                  {substitutoTipo === "POS" ? `OS ${item.id}` : item.id} - {item.cliente} ({item.status})
+                                </option>
+                              ))}
+                            </select>
                           </div>
                         )}
                       </div>
