@@ -6,6 +6,24 @@ import { sincronizarStatusPPV } from "@/lib/pos/sync-ppv";
 import { logAndNotify } from "@/lib/server/audit-notify";
 import type { KanbanCard } from "@/lib/pos/types";
 
+/* ── Verifica se houve mudança manual recente (últimas 6h) para a OS ── */
+async function teveMudancaManualRecente(idOrdem: string): Promise<boolean> {
+  const limite = new Date(Date.now() - 6 * 60 * 60 * 1000); // 6 horas atrás
+  const { data: logs } = await supabase
+    .from(TBL_LOGS_PPO)
+    .select("id, acao, UsuEmail")
+    .eq("Id_ppo", idOrdem)
+    .not("UsuEmail", "eq", "Sistema")
+    .order("id", { ascending: false })
+    .limit(1);
+
+  if (!logs || logs.length === 0) return false;
+
+  // Se o último log NÃO é "Auto-move", significa que um humano mexeu depois
+  const ultimoLog = logs[0];
+  return !ultimoLog.acao.startsWith("Auto-move");
+}
+
 /* ── Auto-move: verifica datas de previsão e move ordens automaticamente ── */
 async function autoMoveByDate() {
   const hoje = new Date();
@@ -22,6 +40,7 @@ async function autoMoveByDate() {
     .in("Status", ["Orçamento", "Orçamento enviado para o cliente e aguardando"]);
 
   for (const os of paraExecucao || []) {
+    if (await teveMudancaManualRecente(os.Id_Ordem)) continue;
     await supabase.from(TBL_OS).update({ Status: "Execução" }).eq("Id_Ordem", os.Id_Ordem);
     await registrarLog(os.Id_Ordem, "Auto-move: Previsão de execução atingida", "Execução", os.Status);
     await sincronizarStatusPPV(os.Id_Ordem, "Execução");
@@ -39,6 +58,7 @@ async function autoMoveByDate() {
     .in("Status", ["Execução"]);
 
   for (const os of execAtrasadas || []) {
+    if (await teveMudancaManualRecente(os.Id_Ordem)) continue;
     await supabase.from(TBL_OS).update({ Status: "Aguardando ordem Técnico" }).eq("Id_Ordem", os.Id_Ordem);
     await registrarLog(os.Id_Ordem, "Auto-move: período de execução encerrado sem conclusão", "Aguardando ordem Técnico", os.Status);
     await sincronizarStatusPPV(os.Id_Ordem, "Aguardando ordem Técnico");
@@ -60,6 +80,7 @@ async function autoMoveByDate() {
     .in("Status", ["Executada aguardando comercial"]);
 
   for (const os of paraFaturamento || []) {
+    if (await teveMudancaManualRecente(os.Id_Ordem)) continue;
     await supabase.from(TBL_OS).update({ Status: "Executada aguardando cliente" }).eq("Id_Ordem", os.Id_Ordem);
     await registrarLog(os.Id_Ordem, "Auto-move: Previsão de faturamento atingida", "Executada aguardando cliente", os.Status);
     await sincronizarStatusPPV(os.Id_Ordem, "Executada aguardando cliente");
