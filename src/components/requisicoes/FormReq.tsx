@@ -53,7 +53,14 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData);
+    // Remove campos vazios para evitar erro se coluna não existir no banco
+    const dados: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(formData)) {
+      if (val !== '' && val !== null && val !== undefined) {
+        dados[key] = val;
+      }
+    }
+    onSave(dados);
   };
 
   // Estilos atualizados: letras maiores e brancas

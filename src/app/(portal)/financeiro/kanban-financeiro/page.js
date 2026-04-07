@@ -729,9 +729,15 @@ return (
             </div>
           )}
 
-          {/* Mover para Pago — só no modal para sem_boleto */}
+          {/* Mover para Pago ou Voltar ao fluxo — só no modal para sem_boleto */}
           {tarefaSelecionada.status === 'sem_boleto' && (
-            <div style={{ marginTop:'20px', background:'#f0fdf4', padding:'20px', borderRadius:'16px', border:'1px solid #bbf7d0', display:'flex', justifyContent:'center' }}>
+            <div style={{ marginTop:'20px', background:'#f0fdf4', padding:'20px', borderRadius:'16px', border:'1px solid #bbf7d0', display:'flex', justifyContent:'center', gap:'12px' }}>
+              <button
+                onClick={() => { handleActionMoveStatus(tarefaSelecionada, 'gerar_boleto'); setTarefaSelecionada(null); }}
+                style={{ background: '#fff', color: '#2563eb', border: '1px solid #93c5fd', padding: '14px 32px', borderRadius: '12px', cursor: 'pointer', fontSize: '15px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.2s' }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#eff6ff'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = '#fff'; }}
+              >↩ Voltar ao Fluxo</button>
               <button
                 onClick={() => { handleActionMoveStatus(tarefaSelecionada, 'pago'); setTarefaSelecionada(null); }}
                 style={{ background: '#16a34a', color: '#fff', border: 'none', padding: '14px 32px', borderRadius: '12px', cursor: 'pointer', fontSize: '15px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.2s' }}

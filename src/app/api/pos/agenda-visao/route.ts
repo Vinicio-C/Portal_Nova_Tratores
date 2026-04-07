@@ -72,6 +72,17 @@ export async function POST(req: NextRequest) {
       });
       seq++;
     }
+
+    // Limpar ordens que saíram de "Execução" (stale records)
+    const ordensAtuais = tec.ordens.map((o: any) => o.id);
+    if (existentes && existentes.length > 0) {
+      const idsRemover = existentes
+        .filter((e: any) => !ordensAtuais.includes(e.id_ordem))
+        .map((e: any) => e.id);
+      if (idsRemover.length > 0) {
+        await supabase.from(TBL).delete().in("id", idsRemover);
+      }
+    }
   }
 
   if (toInsert.length > 0) {

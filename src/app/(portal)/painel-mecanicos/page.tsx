@@ -6,12 +6,11 @@ import SemPermissao from '@/components/SemPermissao'
 import { supabase } from '@/lib/supabase'
 import BlocoVisaoGeral from '@/components/painel-mecanicos/BlocoVisaoGeral'
 import BlocoAgenda from '@/components/painel-mecanicos/BlocoAgenda'
-import BlocoRequisicoes from '@/components/painel-mecanicos/BlocoRequisicoes'
 import BlocoAlertas, { type Alerta } from '@/components/painel-mecanicos/BlocoAlertas'
+import BlocoTecnicos from '@/components/painel-mecanicos/BlocoTecnicos'
 import {
-  Users, FileText, Package, AlertTriangle, RefreshCw,
-  ChevronDown, Star, Clock, Wrench, AlertOctagon,
-  ThumbsUp, ThumbsDown, X, LayoutDashboard, Calendar
+  Users, AlertTriangle, RefreshCw,
+  AlertOctagon, X, LayoutDashboard, Calendar
 } from 'lucide-react'
 
 // ─── Types ───────────────────────────────────────────────────────
@@ -36,24 +35,6 @@ interface OrdemServico {
   Cidade_Cliente: string
   Tipo_Servico: string
   Qtd_HR: string | number | null
-}
-
-interface RequisicaoGeral {
-  id: number
-  titulo: string
-  tipo: string
-  solicitante: string
-  setor: string
-  status: string
-  ordem_servico: string | null
-  created_at: string
-  updated_at: string | null
-}
-
-interface UsuarioBanco {
-  id: string
-  nome: string
-  email: string
 }
 
 interface Caminho {
@@ -138,7 +119,7 @@ const TIPO_OCORRENCIA: Record<string, { label: string; color: string }> = {
   outros: { label: 'Outros', color: '#71717A' },
 }
 
-type Bloco = 'visao' | 'ordens' | 'requisicoes' | 'alertas' | 'tecnicos'
+type Bloco = 'visao' | 'ordens' | 'alertas' | 'tecnicos'
 
 // ─── Component ───────────────────────────────────────────────────
 export default function PainelMecanicosWrapper() {
@@ -152,8 +133,6 @@ function PainelMecanicosPage() {
   const { userProfile } = useAuth()
   const [tecnicos, setTecnicos] = useState<Tecnico[]>([])
   const [ordens, setOrdens] = useState<OrdemServico[]>([])
-  const [requisicoes, setRequisicoes] = useState<RequisicaoGeral[]>([])
-  const [usuariosBanco, setUsuariosBanco] = useState<UsuarioBanco[]>([])
   const [alertas, setAlertas] = useState<Alerta[]>([])
   const [caminhos, setCaminhos] = useState<Caminho[]>([])
   const [execucoesRecentes, setExecucoesRecentes] = useState<Execucao[]>([])
@@ -162,10 +141,6 @@ function PainelMecanicosPage() {
   const [justificativas, setJustificativas] = useState<Justificativa[]>([])
   const [loading, setLoading] = useState(true)
   const [blocoAtivo, setBlocoAtivo] = useState<Bloco>('visao')
-
-  // Técnicos expandidos
-  const [expandedTec, setExpandedTec] = useState<string | null>(null)
-  const [tecSubTab, setTecSubTab] = useState<'atrasos' | 'ocorrencias' | 'execucoes'>('atrasos')
 
   // Modal nova ocorrência
   const [showOcorrenciaModal, setShowOcorrenciaModal] = useState(false)
@@ -178,7 +153,6 @@ function PainelMecanicosPage() {
       { data: tecs },
       { data: usus },
       { data: ords },
-      { data: reqs },
       { data: alerts },
       { data: cams },
       { data: execs },
@@ -193,15 +167,12 @@ function PainelMecanicosPage() {
       supabase.from('financeiro_usu').select('id, nome, email'),
       supabase.from('Ordem_Servico').select('*')
         .order('Previsao_Execucao', { ascending: true }),
-      supabase.from('Requisicao').select('*')
-        .order('id', { ascending: false })
-        .limit(500),
       supabase.from('painel_alertas').select('*')
         .order('created_at', { ascending: false }),
       supabase.from('tecnico_caminhos').select('*')
         .order('created_at', { ascending: false }).limit(50),
       supabase.from('os_tecnico_execucao').select('*')
-        .order('created_at', { ascending: false }).limit(50),
+        .order('created_at', { ascending: false }).limit(500),
       supabase.from('mecanico_requisicoes').select('*')
         .order('created_at', { ascending: false }).limit(100),
       supabase.from('tecnico_ocorrencias').select('*')
@@ -211,12 +182,9 @@ function PainelMecanicosPage() {
     ])
 
     const emailMap: Record<string, string> = {}
-    const usuList: UsuarioBanco[] = []
     ;((usus || []) as any[]).forEach(u => {
       emailMap[u.id] = u.email || ''
-      usuList.push({ id: u.id, nome: u.nome || '', email: u.email || '' })
     })
-    setUsuariosBanco(usuList)
 
     setTecnicos(
       ((tecs || []) as any[]).map(t => ({
@@ -228,22 +196,6 @@ function PainelMecanicosPage() {
     )
 
     setOrdens((ords as OrdemServico[]) || [])
-
-    // Normaliza requisições (campos legados)
-    setRequisicoes(
-      ((reqs || []) as any[]).map(r => ({
-        id: r.id,
-        titulo: r.titulo || r.Material_Serv_Solicitado || '',
-        tipo: r.tipo || r.ReqTipo || 'Peça',
-        solicitante: r.solicitante || r.ReqSolicitante || '',
-        setor: r.setor || r.ReqQuem || '',
-        status: r.status || 'pedido',
-        ordem_servico: r.ordem_servico || r.Os_Vinculada || null,
-        created_at: r.created_at || '',
-        updated_at: r.updated_at || null,
-      }))
-    )
-
     setAlertas((alerts as Alerta[]) || [])
     setCaminhos((cams as Caminho[]) || [])
     setExecucoesRecentes((execs as Execucao[]) || [])
@@ -259,7 +211,6 @@ function PainelMecanicosPage() {
   useEffect(() => {
     const channels = [
       supabase.channel('painel_os').on('postgres_changes', { event: '*', schema: 'public', table: 'Ordem_Servico' }, () => carregar()).subscribe(),
-      supabase.channel('painel_req2').on('postgres_changes', { event: '*', schema: 'public', table: 'Requisicao' }, () => carregar()).subscribe(),
       supabase.channel('painel_alertas').on('postgres_changes', { event: '*', schema: 'public', table: 'painel_alertas' }, () => carregar()).subscribe(),
       supabase.channel('painel_exec').on('postgres_changes', { event: '*', schema: 'public', table: 'os_tecnico_execucao' }, () => carregar()).subscribe(),
       supabase.channel('painel_req_m').on('postgres_changes', { event: '*', schema: 'public', table: 'mecanico_requisicoes' }, () => carregar()).subscribe(),
@@ -323,10 +274,6 @@ function PainelMecanicosPage() {
   const ordensAtivasCount = useMemo(() =>
     ordens.filter(o => o.Status !== 'Concluída' && o.Status !== 'Cancelada').length,
     [ordens]
-  )
-  const reqsPedidoCount = useMemo(() =>
-    requisicoes.filter(r => r.status === 'pedido').length,
-    [requisicoes]
   )
   const alertasAbertosCount = useMemo(() =>
     alertas.filter(a => a.status === 'aberto').length,
@@ -431,7 +378,6 @@ function PainelMecanicosPage() {
   const TABS: { id: Bloco; label: string; icon: React.ReactNode; count?: number }[] = [
     { id: 'visao', label: 'Visão Geral', icon: <LayoutDashboard size={15} /> },
     { id: 'ordens', label: 'Agenda', icon: <Calendar size={15} />, count: ordensAtivasCount },
-    { id: 'requisicoes', label: 'Requisições', icon: <Package size={15} />, count: reqsPedidoCount },
     { id: 'alertas', label: 'Alertas', icon: <AlertTriangle size={15} />, count: alertasAbertosCount },
     { id: 'tecnicos', label: 'Técnicos', icon: <Users size={15} />, count: tecnicosAtivos.length },
   ]
@@ -521,11 +467,6 @@ function PainelMecanicosPage() {
         <BlocoAgenda tecnicos={tecnicos} ordens={ordens} />
       )}
 
-      {/* ═══ REQUISIÇÕES ═══ */}
-      {blocoAtivo === 'requisicoes' && (
-        <BlocoRequisicoes tecnicos={tecnicos} requisicoes={requisicoes} usuariosBanco={usuariosBanco} />
-      )}
-
       {/* ═══ ALERTAS ═══ */}
       {blocoAtivo === 'alertas' && (
         <BlocoAlertas tecnicos={tecnicos} alertas={alertas} onRecarregar={carregar} userName={userProfile?.nome || ''} />
@@ -533,359 +474,21 @@ function PainelMecanicosPage() {
 
       {/* ═══ TÉCNICOS ═══ */}
       {blocoAtivo === 'tecnicos' && (
-        <div>
-          {/* Justificativas pendentes */}
-          {justPendentes.length > 0 && (
-            <div style={{ marginBottom: 32 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-                <h3 style={{ fontSize: 14, fontWeight: 600, color: '#18181B', margin: 0 }}>
-                  Justificativas pendentes
-                </h3>
-                <span style={{ fontSize: 11, fontWeight: 500, color: '#D97706', background: '#FFFBEB', padding: '2px 8px', borderRadius: 10 }}>
-                  {justPendentes.length}
-                </span>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: 12 }}>
-                {justPendentes.map(j => {
-                  const oc = ocorrencias.find(o => o.id === j.id_ocorrencia)
-                  return (
-                    <div key={j.id} style={{
-                      background: '#fff', borderRadius: 10, padding: 18,
-                      border: '1px solid #E4E4E7', borderLeft: '3px solid #D97706',
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-                        <div>
-                          <span style={{ fontSize: 14, fontWeight: 600, color: '#18181B' }}>{j.tecnico_nome}</span>
-                          {j.id_ordem && <span style={{ fontSize: 12, color: '#A1A1AA', marginLeft: 8 }}>OS: {j.id_ordem}</span>}
-                        </div>
-                        <span style={{ fontSize: 11, fontWeight: 500, padding: '2px 8px', borderRadius: 6, background: '#FFFBEB', color: '#D97706' }}>
-                          Pendente
-                        </span>
-                      </div>
-                      {oc && (
-                        <div style={{
-                          background: '#FAFAFA', borderRadius: 8, padding: 12, marginBottom: 12,
-                          border: '1px solid #F4F4F5',
-                        }}>
-                          <div style={{ fontSize: 11, fontWeight: 500, color: '#A1A1AA', marginBottom: 4 }}>Ocorrência</div>
-                          <div style={{ fontSize: 13, color: '#3F3F46' }}>
-                            <span style={{
-                              fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4,
-                              background: `${(TIPO_OCORRENCIA[oc.tipo] || TIPO_OCORRENCIA.outros).color}12`,
-                              color: (TIPO_OCORRENCIA[oc.tipo] || TIPO_OCORRENCIA.outros).color,
-                              marginRight: 6,
-                            }}>
-                              {(TIPO_OCORRENCIA[oc.tipo] || TIPO_OCORRENCIA.outros).label}
-                            </span>
-                            {oc.descricao}
-                            <span style={{ color: '#DC2626', fontWeight: 600, marginLeft: 8 }}>-{oc.pontos_descontados}pts</span>
-                          </div>
-                        </div>
-                      )}
-                      <div style={{
-                        fontSize: 13, color: '#3F3F46', marginBottom: 14, background: '#FFFBEB',
-                        padding: 12, borderRadius: 8, border: '1px solid #FEF3C7', lineHeight: 1.5,
-                      }}>
-                        <div style={{ fontSize: 11, fontWeight: 500, color: '#92400E', marginBottom: 4 }}>Justificativa</div>
-                        {j.justificativa}
-                      </div>
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <button onClick={() => avaliarJustificativa(j.id, true)} style={{
-                          flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                          background: '#18181B', color: '#fff', border: 'none', borderRadius: 8,
-                          padding: '9px 0', fontSize: 13, fontWeight: 500, cursor: 'pointer',
-                        }}>
-                          <ThumbsUp size={14} /> Aceitar
-                        </button>
-                        <button onClick={() => avaliarJustificativa(j.id, false)} style={{
-                          flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                          background: '#fff', color: '#DC2626', border: '1px solid #FECACA', borderRadius: 8,
-                          padding: '9px 0', fontSize: 13, fontWeight: 500, cursor: 'pointer',
-                        }}>
-                          <ThumbsDown size={14} /> Recusar
-                        </button>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Requisições pendentes do mecânico */}
-          {reqPendentes.length > 0 && (
-            <div style={{ marginBottom: 32 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-                <h3 style={{ fontSize: 14, fontWeight: 600, color: '#18181B', margin: 0 }}>
-                  Requisições de material
-                </h3>
-                <span style={{ fontSize: 11, fontWeight: 500, color: '#D97706', background: '#FFFBEB', padding: '2px 8px', borderRadius: 10 }}>
-                  {reqPendentes.length}
-                </span>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 12 }}>
-                {reqPendentes.map(req => (
-                  <div key={req.id} style={{
-                    background: '#fff', borderRadius: 10, padding: 16,
-                    border: '1px solid #E4E4E7',
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: '#18181B' }}>{req.tecnico_nome.split(' ').slice(0, 2).join(' ')}</span>
-                      <span style={{
-                        fontSize: 11, fontWeight: 500, padding: '2px 8px', borderRadius: 6,
-                        background: req.urgencia === 'alta' ? '#FEF2F2' : '#F4F4F5',
-                        color: req.urgencia === 'alta' ? '#DC2626' : '#71717A',
-                      }}>
-                        {req.urgencia === 'alta' ? 'Urgente' : 'Normal'}
-                      </span>
-                    </div>
-                    <div style={{ fontSize: 14, fontWeight: 500, color: '#3F3F46' }}>{req.material_solicitado}</div>
-                    <div style={{ fontSize: 12, color: '#A1A1AA', marginTop: 4 }}>
-                      {req.quantidade && `Qtd: ${req.quantidade} · `}
-                      {req.id_ordem && `OS: ${req.id_ordem} · `}
-                      {new Date(req.created_at).toLocaleDateString('pt-BR')}
-                    </div>
-                    <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                      <button onClick={() => aprovarRequisicao(req.id)} style={{
-                        flex: 1, padding: '7px 0', fontSize: 12, fontWeight: 500,
-                        background: '#18181B', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer',
-                      }}>
-                        Aprovar
-                      </button>
-                      <button onClick={() => recusarRequisicao(req.id)} style={{
-                        flex: 1, padding: '7px 0', fontSize: 12, fontWeight: 500,
-                        background: '#fff', color: '#71717A', border: '1px solid #E4E4E7', borderRadius: 6, cursor: 'pointer',
-                      }}>
-                        Recusar
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Lista de técnicos */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-            <h3 style={{ fontSize: 14, fontWeight: 600, color: '#18181B', margin: 0 }}>Equipe</h3>
-            <span style={{ fontSize: 11, fontWeight: 500, color: '#71717A', background: '#F4F4F5', padding: '2px 8px', borderRadius: 10 }}>
-              {tecnicosAtivos.length}
-            </span>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {tecnicos.map(tec => {
-              const isExpanded = expandedTec === tec.user_id
-              const pontos = pontuacaoTecnico[tec.tecnico_nome] ?? 100
-              const atrasosDoTec = ordensAtrasoPorTecnico[tec.tecnico_nome] || []
-              const ocorrDoTec = ocorrencias.filter(o => o.tecnico_nome === tec.tecnico_nome)
-              const execsDoTec = execucoesRecentes.filter(e => e.tecnico_nome === tec.tecnico_nome)
-              const ordsTec = ordensPorTecnico[tec.tecnico_nome] || []
-              const pontosColor = pontos >= 80 ? '#18181B' : pontos >= 50 ? '#D97706' : '#DC2626'
-              const isTecnico = tec.mecanico_role === 'tecnico'
-
-              return (
-                <div key={tec.user_id} style={{
-                  background: '#fff', borderRadius: 10, border: '1px solid #E4E4E7', overflow: 'hidden',
-                }}>
-                  <div
-                    style={{
-                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                      padding: '14px 20px', cursor: 'pointer',
-                    }}
-                    onClick={() => { setExpandedTec(isExpanded ? null : tec.user_id); setTecSubTab('atrasos') }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                      <div style={{
-                        width: 36, height: 36, borderRadius: 10,
-                        background: '#F4F4F5',
-                        color: '#3F3F46', display: 'flex', alignItems: 'center',
-                        justifyContent: 'center', fontSize: 14, fontWeight: 700,
-                      }}>
-                        {tec.tecnico_nome.charAt(0)}
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 14, fontWeight: 600, color: '#18181B' }}>{tec.tecnico_nome}</div>
-                        <div style={{ fontSize: 12, color: '#A1A1AA', display: 'flex', alignItems: 'center', gap: 6, marginTop: 1 }}>
-                          <span>{ordsTec.length} ordens</span>
-                          <span style={{ color: '#D4D4D8' }}>·</span>
-                          <span style={{
-                            fontSize: 11, fontWeight: 500, padding: '0px 6px', borderRadius: 4,
-                            background: isTecnico ? '#F4F4F5' : '#FAF5FF',
-                            color: isTecnico ? '#71717A' : '#7C3AED',
-                          }}>
-                            {isTecnico ? 'Técnico' : 'Observador'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      {atrasosDoTec.length > 0 && (
-                        <span style={{
-                          background: '#FEF2F2', color: '#DC2626', fontSize: 11, fontWeight: 500,
-                          padding: '3px 10px', borderRadius: 6,
-                        }}>
-                          {atrasosDoTec.length} atraso{atrasosDoTec.length !== 1 ? 's' : ''}
-                        </span>
-                      )}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <Star size={13} color={pontosColor} fill={pontos >= 80 ? pontosColor : 'none'} />
-                        <span style={{ fontSize: 15, fontWeight: 700, color: pontosColor }}>{pontos}</span>
-                      </div>
-                      <ChevronDown size={16} color="#A1A1AA" style={{
-                        transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-                        transition: 'transform 0.2s',
-                      }} />
-                    </div>
-                  </div>
-
-                  {isExpanded && (
-                    <div style={{ borderTop: '1px solid #F4F4F5' }}>
-                      <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid #F4F4F5' }}>
-                        {([
-                          { id: 'atrasos', label: `Atrasos (${atrasosDoTec.length})`, icon: <Clock size={13} /> },
-                          { id: 'ocorrencias', label: `Ocorrências (${ocorrDoTec.length})`, icon: <AlertOctagon size={13} /> },
-                          { id: 'execucoes', label: `Execuções (${execsDoTec.length})`, icon: <Wrench size={13} /> },
-                        ] as const).map(st => {
-                          const active = tecSubTab === st.id
-                          return (
-                            <button key={st.id} onClick={() => setTecSubTab(st.id)} style={{
-                              padding: '10px 20px', fontSize: 12, fontWeight: active ? 600 : 400, border: 'none', cursor: 'pointer',
-                              display: 'flex', alignItems: 'center', gap: 5,
-                              background: 'transparent',
-                              color: active ? '#18181B' : '#A1A1AA',
-                              borderBottom: active ? '2px solid #18181B' : '2px solid transparent',
-                              marginBottom: -1,
-                            }}>
-                              {st.icon} {st.label}
-                            </button>
-                          )
-                        })}
-                      </div>
-
-                      <div style={{ padding: 20 }}>
-                        {tecSubTab === 'atrasos' && (
-                          atrasosDoTec.length === 0 ? (
-                            <div style={{ textAlign: 'center', color: '#D4D4D8', fontSize: 13, padding: 24 }}>
-                              Nenhum serviço em atraso
-                            </div>
-                          ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                              {atrasosDoTec.map(o => {
-                                const diasAtraso = Math.ceil((Date.now() - new Date(o.Previsao_Execucao + 'T23:59:59').getTime()) / (1000 * 60 * 60 * 24))
-                                return (
-                                  <div key={o.Id_Ordem} style={{
-                                    padding: 14, background: '#FAFAFA', borderRadius: 8,
-                                    border: '1px solid #F4F4F5', borderLeft: '3px solid #DC2626',
-                                  }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                                      <span style={{ fontSize: 13, fontWeight: 600, color: '#18181B' }}>{o.Id_Ordem}</span>
-                                      <span style={{ fontSize: 12, fontWeight: 500, color: '#DC2626' }}>
-                                        {diasAtraso} dia{diasAtraso !== 1 ? 's' : ''} de atraso
-                                      </span>
-                                    </div>
-                                    <div style={{ fontSize: 13, color: '#3F3F46' }}>{o.Os_Cliente}</div>
-                                    <div style={{ fontSize: 12, color: '#A1A1AA', marginTop: 4 }}>
-                                      {o.Tipo_Servico} · Previsão: {o.Previsao_Execucao ? new Date(o.Previsao_Execucao + 'T12:00:00').toLocaleDateString('pt-BR') : '-'}
-                                    </div>
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          )
-                        )}
-
-                        {tecSubTab === 'ocorrencias' && (
-                          ocorrDoTec.length === 0 ? (
-                            <div style={{ textAlign: 'center', color: '#D4D4D8', fontSize: 13, padding: 24 }}>
-                              Nenhuma ocorrência registrada
-                            </div>
-                          ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                              {ocorrDoTec.map(oc => {
-                                const tipoInfo = TIPO_OCORRENCIA[oc.tipo] || TIPO_OCORRENCIA.outros
-                                const justDoOc = justificativas.find(j => j.id_ocorrencia === oc.id)
-                                return (
-                                  <div key={oc.id} style={{
-                                    padding: 14, background: '#FAFAFA', borderRadius: 8,
-                                    border: '1px solid #F4F4F5', borderLeft: `3px solid ${tipoInfo.color}`,
-                                  }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                        <span style={{
-                                          fontSize: 11, fontWeight: 500, padding: '2px 8px', borderRadius: 4,
-                                          background: `${tipoInfo.color}12`, color: tipoInfo.color,
-                                        }}>
-                                          {tipoInfo.label}
-                                        </span>
-                                        {oc.id_ordem && <span style={{ fontSize: 12, color: '#A1A1AA' }}>OS: {oc.id_ordem}</span>}
-                                      </div>
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                        <span style={{ fontSize: 12, fontWeight: 600, color: '#DC2626' }}>-{oc.pontos_descontados}pts</span>
-                                        {justDoOc && (
-                                          <span style={{
-                                            fontSize: 10, fontWeight: 500, padding: '2px 6px', borderRadius: 4,
-                                            background: justDoOc.status === 'aprovada' ? '#F0FDF4' : justDoOc.status === 'recusada' ? '#FEF2F2' : '#FFFBEB',
-                                            color: justDoOc.status === 'aprovada' ? '#15803D' : justDoOc.status === 'recusada' ? '#DC2626' : '#D97706',
-                                          }}>
-                                            {justDoOc.status}
-                                          </span>
-                                        )}
-                                      </div>
-                                    </div>
-                                    <div style={{ fontSize: 13, color: '#3F3F46', lineHeight: 1.5 }}>{oc.descricao}</div>
-                                    <div style={{ fontSize: 12, color: '#D4D4D8', marginTop: 6 }}>
-                                      {new Date(oc.data).toLocaleDateString('pt-BR')}
-                                    </div>
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          )
-                        )}
-
-                        {tecSubTab === 'execucoes' && (
-                          execsDoTec.length === 0 ? (
-                            <div style={{ textAlign: 'center', color: '#D4D4D8', fontSize: 13, padding: 24 }}>
-                              Nenhuma execução registrada
-                            </div>
-                          ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                              {execsDoTec.slice(0, 10).map(ex => (
-                                <div key={ex.id} style={{
-                                  padding: 14, background: '#FAFAFA', borderRadius: 8,
-                                  border: '1px solid #F4F4F5',
-                                }}>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                                    <span style={{ fontSize: 13, fontWeight: 600, color: '#18181B' }}>{ex.id_ordem}</span>
-                                    <span style={{
-                                      fontSize: 11, fontWeight: 500, padding: '2px 8px', borderRadius: 4,
-                                      background: ex.status === 'enviado' ? '#F0FDF4' : '#FFFBEB',
-                                      color: ex.status === 'enviado' ? '#15803D' : '#92400E',
-                                    }}>
-                                      {ex.status === 'enviado' ? 'Enviado' : 'Rascunho'}
-                                    </span>
-                                  </div>
-                                  {ex.servico_realizado && (
-                                    <div style={{ fontSize: 13, color: '#52525B', lineHeight: 1.5 }}>
-                                      {ex.servico_realizado.length > 120 ? ex.servico_realizado.substring(0, 120) + '...' : ex.servico_realizado}
-                                    </div>
-                                  )}
-                                  <div style={{ fontSize: 12, color: '#D4D4D8', marginTop: 6 }}>
-                                    {new Date(ex.data_execucao + 'T12:00:00').toLocaleDateString('pt-BR')}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        </div>
+        <BlocoTecnicos
+          tecnicos={tecnicos}
+          ordens={ordens}
+          execucoes={execucoesRecentes}
+          ocorrencias={ocorrencias}
+          justificativas={justificativas}
+          reqsMecanico={reqsMecanico}
+          pontuacaoTecnico={pontuacaoTecnico}
+          ordensAtrasoPorTecnico={ordensAtrasoPorTecnico}
+          ordensPorTecnico={ordensPorTecnico}
+          onAprovarRequisicao={aprovarRequisicao}
+          onRecusarRequisicao={recusarRequisicao}
+          onAvaliarJustificativa={avaliarJustificativa}
+          tipoOcorrencia={TIPO_OCORRENCIA}
+        />
       )}
 
       {/* ═══ MODAL NOVA OCORRÊNCIA ═══ */}

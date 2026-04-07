@@ -215,6 +215,12 @@ export default function Kanban() {
     carregarDados();
  };
 
+ const handleVoltarFluxo = async (t) => {
+    await supabase.from('Chamado_NF').update({ status: 'gerar_boleto', tarefa: 'Gerar Boleto' }).eq('id', t.id);
+    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} devolveu NF #${t.id} ao fluxo`, `Cliente: ${t.nom_cliente || ''}`, `/financeiro/kanban`)
+    carregarDados();
+ };
+
  const handleMoverParaPago = async (t) => {
     await supabase.from('Chamado_NF').update({ status: 'pago', tarefa: 'Pagamento Confirmado' }).eq('id', t.id);
     notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} confirmou pagamento NF #${t.id}`, `Cliente: ${t.nom_cliente || ''}`, `/financeiro/kanban`)
@@ -279,6 +285,15 @@ export default function Kanban() {
           <div style={{ background: t.status === 'vencido' ? '#fef2f2' : (t.status === 'pago' ? '#f0fdf4' : '#ffffff'), padding: '25px', color: '#1e293b', borderBottom: '1px solid #e5e7eb' }}>
            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
              <h4 onClick={() => setTarefaSelecionada(t)} style={{ margin: 0, fontSize: '20px', fontWeight: '500', color: t.status === 'vencido' ? '#dc2626' : (t.status === 'pago' ? '#16a34a' : '#1e293b'), cursor: 'pointer', flex: 1 }}>{t.nom_cliente?.toUpperCase()}</h4>
+             {t.status === 'sem_boleto' && (
+               <button
+                 title="Voltar para Gerar Boleto"
+                 onClick={(e) => { e.stopPropagation(); handleVoltarFluxo(t); }}
+                 style={{ background: '#f8fafc', border: '1px solid #e5e7eb', borderRadius: '8px', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#6b7280', fontSize: '14px', fontWeight: '700', transition: '0.2s', flexShrink: 0 }}
+                 onMouseEnter={e => { e.currentTarget.style.background = '#eff6ff'; e.currentTarget.style.color = '#2563eb'; e.currentTarget.style.borderColor = '#93c5fd'; }}
+                 onMouseLeave={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.color = '#6b7280'; e.currentTarget.style.borderColor = '#e5e7eb'; }}
+               >↩</button>
+             )}
              {t.status !== 'sem_boleto' && t.status !== 'pago' && (
                <button
                  title="Mover para Cliente Sem Boleto"

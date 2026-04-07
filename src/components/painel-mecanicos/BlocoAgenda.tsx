@@ -35,17 +35,20 @@ const COLORS = ['#6366F1', '#0EA5E9', '#F59E0B', '#10B981', '#EC4899', '#8B5CF6'
 function getSegunda(offset: number): Date {
   const d = new Date()
   const day = d.getDay()
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1) + offset * 7
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1) + offset * 14
   const seg = new Date(d.getFullYear(), d.getMonth(), diff)
   seg.setHours(0, 0, 0, 0)
   return seg
 }
 
-function getDiasSemana(offset: number): string[] {
+// 2 semanas = 12 dias úteis (Seg-Sáb × 2)
+function getDias2Semanas(offset: number): string[] {
   const seg = getSegunda(offset)
-  return Array.from({ length: 6 }, (_, i) => {
+  return Array.from({ length: 12 }, (_, i) => {
+    const weekIdx = Math.floor(i / 6)
+    const dayIdx = i % 6
     const d = new Date(seg)
-    d.setDate(seg.getDate() + i)
+    d.setDate(seg.getDate() + weekIdx * 7 + dayIdx)
     return d.toISOString().split('T')[0]
   })
 }
@@ -53,6 +56,20 @@ function getDiasSemana(offset: number): string[] {
 function formatDia(dateStr: string): string {
   const d = new Date(dateStr + 'T12:00:00')
   return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}`
+}
+
+// Calcular dias de execução a partir de Qtd_HR (8h por dia, mínimo 1)
+function calcDiasExecucao(qtdHR: string | number | null | undefined): number {
+  const h = parseFloat(String(qtdHR || 0)) || 0
+  if (h <= 0) return 1
+  return Math.max(1, Math.ceil(h / 8))
+}
+
+// Próximos dias úteis a partir de um dia (incluindo o próprio)
+function proximosDiasUteis(diaInicial: string, qtd: number, diasDisponiveis: string[]): string[] {
+  const idx = diasDisponiveis.indexOf(diaInicial)
+  if (idx === -1) return [diaInicial]
+  return diasDisponiveis.slice(idx, idx + qtd)
 }
 
 export default function BlocoAgenda({ tecnicos, ordens }: { tecnicos: Tecnico[]; ordens: OrdemServico[] }) {
@@ -63,7 +80,7 @@ export default function BlocoAgenda({ tecnicos, ordens }: { tecnicos: Tecnico[];
   const [obsEditando, setObsEditando] = useState<number | null>(null)
 
   // Add form state
-  const [addKey, setAddKey] = useState<string | null>(null) // "tecNome|dia"
+  const [addKey, setAddKey] = useState<string | null>(null)
   const [addMode, setAddMode] = useState<'os' | 'manual'>('os')
   const [buscaOS, setBuscaOS] = useState('')
   const [addSalvando, setAddSalvando] = useState(false)
@@ -77,13 +94,11 @@ export default function BlocoAgenda({ tecnicos, ordens }: { tecnicos: Tecnico[];
   const [carregandoCliente, setCarregandoCliente] = useState(false)
 
   const tecs = useMemo(() => tecnicos.filter(t => t.mecanico_role === 'tecnico'), [tecnicos])
-  const dias = useMemo(() => getDiasSemana(semanaOffset), [semanaOffset])
+  const dias = useMemo(() => getDias2Semanas(semanaOffset), [semanaOffset])
   const hoje = useMemo(() => new Date().toISOString().split('T')[0], [])
 
-  // Ordens em execução (para o dropdown)
   const ordensExecucao = useMemo(() => ordens.filter(o => o.Status === 'Execução'), [ordens])
 
-  // Ordens ativas por técnico
   const ordensPorTec = useMemo(() => {
     const m: Record<string, OrdemServico[]> = {}
     tecs.forEach(t => {
@@ -95,7 +110,6 @@ export default function BlocoAgenda({ tecnicos, ordens }: { tecnicos: Tecnico[];
     return m
   }, [tecs, ordens])
 
-  // Carregar clientes (para manual mode)
   useEffect(() => {
     fetch('/api/pos/clientes').then(r => r.ok ? r.json() : []).then(setClientes).catch(() => {})
   }, [])
@@ -106,7 +120,7 @@ export default function BlocoAgenda({ tecnicos, ordens }: { tecnicos: Tecnico[];
     return clientes.filter(c => { const d = c.display.toLowerCase(); return terms.every(t => d.includes(t)) }).slice(0, 12)
   }, [clienteFilter, clientes])
 
-  // Fetch agenda da semana inteira
+  // Fetch agenda dos 12 dias
   const carregarSemana = useCallback(async () => {
     setLoading(true)
     try {
@@ -120,7 +134,6 @@ export default function BlocoAgenda({ tecnicos, ordens }: { tecnicos: Tecnico[];
 
   useEffect(() => { carregarSemana() }, [carregarSemana])
 
-  // Salvar observação
   const salvarObs = async (id: number, obs: string) => {
     setSalvando(p => ({ ...p, [id]: true }))
     try {
@@ -134,13 +147,11 @@ export default function BlocoAgenda({ tecnicos, ordens }: { tecnicos: Tecnico[];
     setObsEditando(null)
   }
 
-  // Remover item
   const remover = async (id: number) => {
     const r = await fetch('/api/pos/agenda-visao', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
     if (r.ok) setAgendaSemana(p => p.filter(a => a.id !== id))
   }
 
-  // Buscar dados do cliente quando selecionado (manual mode)
   const selecionarCliente = async (c: ClienteOption) => {
     setCarregandoCliente(true)
     setClienteFilter(c.display.split('[')[0].trim())
@@ -154,7 +165,6 @@ export default function BlocoAgenda({ tecnicos, ordens }: { tecnicos: Tecnico[];
     setCarregandoCliente(false)
   }
 
-  // Encontrar última localização do técnico no dia
   const getUltimaLocalizacao = (tecNome: string, dia: string) => {
     const itemsDia = agendaSemana
       .filter(a => a.data === dia && a.tecnico_nome === tecNome && a.coordenadas)
@@ -162,79 +172,89 @@ export default function BlocoAgenda({ tecnicos, ordens }: { tecnicos: Tecnico[];
     return itemsDia[itemsDia.length - 1] || null
   }
 
-  // Adicionar OS existente à agenda + abrir caminho
-  const adicionarOS = async (tecNome: string, dia: string, os: OrdemServico) => {
+  // Adicionar OS — distribui automaticamente pelos dias de execução
+  const adicionarOS = async (tecNome: string, diaInicial: string, os: OrdemServico) => {
     setAddSalvando(true)
     try {
-      const horas = parseFloat(String(os.Qtd_HR || 0)) || 2
-      const ultimoItem = getUltimaLocalizacao(tecNome, dia)
+      const horasPorDia = 8
+      const totalHoras = parseFloat(String(os.Qtd_HR || 0)) || 2
+      const diasExec = calcDiasExecucao(os.Qtd_HR)
+      const diasParaAgendar = proximosDiasUteis(diaInicial, diasExec, dias)
 
-      // Inserir na agenda
-      const r = await fetch('/api/pos/agenda-visao', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          data: dia,
-          tecnicos: [{
-            nome: tecNome,
-            ordens: [{
-              id: os.Id_Ordem, cliente: os.Os_Cliente, cnpj: os.Cnpj_Cliente,
-              endereco: os.Endereco_Cliente, cidade: os.Cidade_Cliente,
-              servico: os.Serv_Solicitado, qtdHoras: horas,
-              observacoes: extrairSolicitacao(os.Serv_Solicitado || ''),
-            }],
-          }],
-        }),
-      })
+      for (let d = 0; d < diasParaAgendar.length; d++) {
+        const diaAtual = diasParaAgendar[d]
+        const horasDoDia = d < diasParaAgendar.length - 1 ? horasPorDia : Math.min(horasPorDia, totalHoras - d * horasPorDia)
+        const ultimoItem = getUltimaLocalizacao(tecNome, diaAtual)
 
-      if (r.ok) {
-        const rows = await r.json() as AgendaRow[]
-        const outrosDias = agendaSemana.filter(a => a.data !== dia)
-        setAgendaSemana([...outrosDias, ...rows])
-
-        // Abrir caminho (tecnico_caminhos)
-        await fetch('/api/pos/agenda-visao/caminho', {
+        const r = await fetch('/api/pos/agenda-visao', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            tecnico_nome: tecNome,
-            destino: os.Os_Cliente,
-            cidade: os.Cidade_Cliente || '',
-            motivo: os.Id_Ordem,
+            data: diaAtual,
+            tecnicos: [{
+              nome: tecNome,
+              ordens: [{
+                id: os.Id_Ordem, cliente: os.Os_Cliente, cnpj: os.Cnpj_Cliente,
+                endereco: os.Endereco_Cliente, cidade: os.Cidade_Cliente,
+                servico: os.Serv_Solicitado, qtdHoras: Math.max(1, horasDoDia),
+                observacoes: diasExec > 1
+                  ? `Dia ${d + 1}/${diasExec} · ${extrairSolicitacao(os.Serv_Solicitado || '')}`
+                  : extrairSolicitacao(os.Serv_Solicitado || ''),
+              }],
+            }],
           }),
-        }).catch(() => {})
+        })
 
-        // Calcular rota (do último ponto ou da oficina)
-        const novoItem = rows.find(row =>
-          row.tecnico_nome === tecNome && row.id_ordem === os.Id_Ordem && row.tempo_ida_min === 0
-        )
-        if (novoItem) {
-          const calcBody: Record<string, any> = { id: novoItem.id, calcular: true }
-          if (ultimoItem?.coordenadas) {
-            calcBody.origemLat = ultimoItem.coordenadas.lat
-            calcBody.origemLng = ultimoItem.coordenadas.lng
+        if (r.ok) {
+          const rows = await r.json() as AgendaRow[]
+          const outrosDias = agendaSemana.filter(a => a.data !== diaAtual)
+          setAgendaSemana(prev => [...prev.filter(a => a.data !== diaAtual), ...rows])
+
+          // Abrir caminho apenas no primeiro dia
+          if (d === 0) {
+            await fetch('/api/pos/agenda-visao/caminho', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                tecnico_nome: tecNome,
+                destino: os.Os_Cliente,
+                cidade: os.Cidade_Cliente || '',
+                motivo: os.Id_Ordem,
+              }),
+            }).catch(() => {})
           }
-          fetch('/api/pos/agenda-visao', {
-            method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(calcBody),
-          }).then(async r2 => {
-            if (r2.ok) {
-              const updated = await r2.json()
-              setAgendaSemana(p => p.map(a => a.id === updated.id ? updated : a))
+
+          // Calcular rota
+          const novoItem = rows.find(row =>
+            row.tecnico_nome === tecNome && row.id_ordem === os.Id_Ordem && row.tempo_ida_min === 0
+          )
+          if (novoItem) {
+            const calcBody: Record<string, any> = { id: novoItem.id, calcular: true }
+            if (ultimoItem?.coordenadas) {
+              calcBody.origemLat = ultimoItem.coordenadas.lat
+              calcBody.origemLng = ultimoItem.coordenadas.lng
             }
-          })
+            fetch('/api/pos/agenda-visao', {
+              method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(calcBody),
+            }).then(async r2 => {
+              if (r2.ok) {
+                const updated = await r2.json()
+                setAgendaSemana(p => p.map(a => a.id === updated.id ? updated : a))
+              }
+            })
+          }
         }
       }
     } catch { }
     fecharAdd()
     setAddSalvando(false)
+    carregarSemana()
   }
 
-  // Adicionar manual (cliente do dropdown POS) + abrir caminho
   const adicionarManual = async (tecNome: string, dia: string) => {
     if (!clienteSelecionado) return
     setAddSalvando(true)
     try {
       const ultimoItem = getUltimaLocalizacao(tecNome, dia)
-
       const r = await fetch('/api/pos/agenda-visao', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -242,14 +262,9 @@ export default function BlocoAgenda({ tecnicos, ordens }: { tecnicos: Tecnico[];
           tecnicos: [{
             nome: tecNome,
             ordens: [{
-              id: `AG-${Date.now()}`,
-              cliente: clienteSelecionado.nome,
-              cnpj: '',
-              endereco: clienteSelecionado.endereco,
-              cidade: clienteSelecionado.cidade,
-              servico: '',
-              qtdHoras: addHoras,
-              observacoes: addObs,
+              id: `AG-${Date.now()}`, cliente: clienteSelecionado.nome, cnpj: '',
+              endereco: clienteSelecionado.endereco, cidade: clienteSelecionado.cidade,
+              servico: '', qtdHoras: addHoras, observacoes: addObs,
             }],
           }],
         }),
@@ -257,21 +272,16 @@ export default function BlocoAgenda({ tecnicos, ordens }: { tecnicos: Tecnico[];
 
       if (r.ok) {
         const rows = await r.json() as AgendaRow[]
-        const outrosDias = agendaSemana.filter(a => a.data !== dia)
-        setAgendaSemana([...outrosDias, ...rows])
+        setAgendaSemana(prev => [...prev.filter(a => a.data !== dia), ...rows])
 
-        // Abrir caminho
         await fetch('/api/pos/agenda-visao/caminho', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            tecnico_nome: tecNome,
-            destino: clienteSelecionado.nome,
-            cidade: clienteSelecionado.cidade,
-            motivo: addObs || 'Serviço agendado',
+            tecnico_nome: tecNome, destino: clienteSelecionado.nome,
+            cidade: clienteSelecionado.cidade, motivo: addObs || 'Serviço agendado',
           }),
         }).catch(() => {})
 
-        // Calcular rota
         const novoItem = rows.find(row =>
           row.tecnico_nome === tecNome && row.tempo_ida_min === 0 && row.endereco &&
           !agendaSemana.some(exist => exist.id === row.id)
@@ -317,10 +327,17 @@ export default function BlocoAgenda({ tecnicos, ordens }: { tecnicos: Tecnico[];
     setAddObs('')
   }
 
-  // Label da semana
+  // Labels
   const segStr = formatDia(dias[0])
-  const sabStr = formatDia(dias[5])
+  const sabStr2 = formatDia(dias[11])
   const isSemanaAtual = semanaOffset === 0
+
+  // IDs de ordens já agendadas em qualquer dia visível
+  const idsAgendados = useMemo(() => {
+    const set = new Set<string>()
+    agendaSemana.forEach(a => { if (a.id_ordem) set.add(a.id_ordem) })
+    return set
+  }, [agendaSemana])
 
   return (
     <div>
@@ -333,10 +350,10 @@ export default function BlocoAgenda({ tecnicos, ordens }: { tecnicos: Tecnico[];
           }}>
             <ChevronLeft size={16} color="#71717A" />
           </button>
-          <div style={{ minWidth: 180, textAlign: 'center' }}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: '#18181B' }}>{segStr} — {sabStr}</div>
+          <div style={{ minWidth: 200, textAlign: 'center' }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#18181B' }}>{segStr} — {sabStr2}</div>
             <div style={{ fontSize: 12, color: '#A1A1AA' }}>
-              {isSemanaAtual ? 'Semana atual' : semanaOffset > 0 ? `+${semanaOffset} semana(s)` : `${semanaOffset} semana(s)`}
+              {isSemanaAtual ? '2 semanas a partir de hoje' : semanaOffset > 0 ? `+${semanaOffset * 2} semanas` : `${semanaOffset * 2} semanas`}
             </div>
           </div>
           <button onClick={() => setSemanaOffset(p => p + 1)} style={{
@@ -357,9 +374,9 @@ export default function BlocoAgenda({ tecnicos, ordens }: { tecnicos: Tecnico[];
         {loading && <Loader2 size={16} color="#71717A" className="animate-spin" />}
       </div>
 
-      {/* Grid do calendário */}
+      {/* Grid do calendário - 2 semanas */}
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', minWidth: 900 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', minWidth: 1400 }}>
           <thead>
             <tr>
               <th style={{
@@ -371,15 +388,21 @@ export default function BlocoAgenda({ tecnicos, ordens }: { tecnicos: Tecnico[];
               </th>
               {dias.map((dia, i) => {
                 const isHoje = dia === hoje
+                const weekIdx = Math.floor(i / 6)
+                const dayIdx = i % 6
+                const isWeek2Start = i === 6
                 return (
                   <th key={dia} style={{
-                    padding: '10px 8px', fontSize: 12, fontWeight: 700,
+                    padding: '8px 6px', fontSize: 11, fontWeight: 700,
                     color: isHoje ? '#6366F1' : '#71717A', textAlign: 'center',
-                    background: isHoje ? '#EEF2FF' : '#FAFAFA',
+                    background: isHoje ? '#EEF2FF' : weekIdx === 1 ? '#F9FAFB' : '#FAFAFA',
                     borderBottom: isHoje ? '2px solid #6366F1' : '2px solid #E4E4E7',
+                    borderLeft: isWeek2Start ? '3px solid #E4E4E7' : '1px solid #F4F4F5',
                   }}>
-                    <div>{DIAS_SEMANA[i]}</div>
-                    <div style={{ fontSize: 14, fontWeight: 800, marginTop: 2 }}>{formatDia(dia)}</div>
+                    <div style={{ fontSize: 10, color: weekIdx === 1 ? '#A1A1AA' : '#71717A' }}>
+                      {weekIdx === 0 ? 'Sem 1' : 'Sem 2'} · {DIAS_SEMANA[dayIdx]}
+                    </div>
+                    <div style={{ fontSize: 13, fontWeight: 800, marginTop: 2 }}>{formatDia(dia)}</div>
                   </th>
                 )
               })}
@@ -392,7 +415,6 @@ export default function BlocoAgenda({ tecnicos, ordens }: { tecnicos: Tecnico[];
 
               return (
                 <tr key={tec.user_id}>
-                  {/* Nome do técnico */}
                   <td style={{
                     padding: '12px', borderBottom: '1px solid #F4F4F5', verticalAlign: 'top',
                     position: 'sticky', left: 0, background: '#fff', zIndex: 1,
@@ -416,21 +438,18 @@ export default function BlocoAgenda({ tecnicos, ordens }: { tecnicos: Tecnico[];
                     </div>
                   </td>
 
-                  {/* Células dos dias */}
-                  {dias.map(dia => {
+                  {dias.map((dia, diaIdx) => {
                     const isHoje = dia === hoje
                     const cellKey = `${tec.tecnico_nome}|${dia}`
                     const isAdding = addKey === cellKey
+                    const weekIdx = Math.floor(diaIdx / 6)
+                    const isWeek2Start = diaIdx === 6
                     const items = agendaSemana.filter(a => a.data === dia && a.tecnico_nome === tec.tecnico_nome)
                       .sort((a, b) => a.ordem_sequencia - b.ordem_sequencia)
 
-                    // IDs já na agenda desse dia/técnico
                     const idsNaAgenda = new Set(items.map(a => a.id_ordem).filter(Boolean))
-
-                    // Ordens do técnico disponíveis (não estão na agenda desse dia)
                     const ordsTec = ordsAtivas.filter(o => !idsNaAgenda.has(o.Id_Ordem))
 
-                    // Filtro de busca (busca em todas as ordens em execução, não só do técnico)
                     const buscaLower = buscaOS.toLowerCase()
                     const ordsFiltradas = isAdding && addMode === 'os'
                       ? (buscaOS
@@ -448,16 +467,16 @@ export default function BlocoAgenda({ tecnicos, ordens }: { tecnicos: Tecnico[];
 
                     return (
                       <td key={dia} style={{
-                        padding: '6px', borderBottom: '1px solid #F4F4F5', verticalAlign: 'top',
+                        padding: '4px', borderBottom: '1px solid #F4F4F5', verticalAlign: 'top',
                         background: isHoje ? '#FAFAFF' : '#fff',
-                        borderLeft: '1px solid #F4F4F5',
-                        position: 'relative',
+                        borderLeft: isWeek2Start ? '3px solid #E4E4E7' : '1px solid #F4F4F5',
+                        position: 'relative', minWidth: 100,
                       }}>
                         {items.length === 0 && !isAdding ? (
                           <div
                             onClick={() => abrirAdd(tec.tecnico_nome, dia)}
                             style={{
-                              textAlign: 'center', padding: '12px 0', color: '#E4E4E7', fontSize: 11,
+                              textAlign: 'center', padding: '10px 0', color: '#E4E4E7', fontSize: 11,
                               cursor: 'pointer', borderRadius: 6, transition: 'all 0.15s',
                             }}
                             onMouseEnter={e => { e.currentTarget.style.background = '#F4F4F5'; e.currentTarget.style.color = '#A1A1AA' }}
@@ -466,120 +485,111 @@ export default function BlocoAgenda({ tecnicos, ordens }: { tecnicos: Tecnico[];
                             <Plus size={14} style={{ display: 'inline' }} />
                           </div>
                         ) : (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                             {items.map(row => (
                               <div key={row.id} style={{
-                                padding: '8px 10px', borderRadius: 8,
+                                padding: '6px 8px', borderRadius: 6,
                                 background: '#F9FAFB', border: '1px solid #F4F4F5',
                                 borderLeft: `3px solid ${tecColor}`,
                               }}>
-                                {/* OS + horas + delete */}
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
                                   <span style={{
-                                    fontSize: 11, fontWeight: 700, color: '#fff', background: tecColor,
-                                    padding: '1px 6px', borderRadius: 4,
+                                    fontSize: 10, fontWeight: 700, color: '#fff', background: tecColor,
+                                    padding: '1px 5px', borderRadius: 3,
                                   }}>
                                     {row.id_ordem?.startsWith('AG-') ? 'Manual' : (row.id_ordem || 'Manual')}
                                   </span>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                    <span style={{ fontSize: 10, color: '#A1A1AA', fontWeight: 600 }}>{row.qtd_horas}h</span>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                                    <span style={{ fontSize: 9, color: '#A1A1AA', fontWeight: 600 }}>{row.qtd_horas}h</span>
                                     <button onClick={() => remover(row.id)} style={{
                                       background: 'none', border: 'none', cursor: 'pointer', color: '#D4D4D8', padding: 1,
-                                      transition: 'color 0.15s',
                                     }}
                                       onMouseEnter={e => (e.currentTarget.style.color = '#EF4444')}
                                       onMouseLeave={e => (e.currentTarget.style.color = '#D4D4D8')}
                                     >
-                                      <Trash2 size={10} />
+                                      <Trash2 size={9} />
                                     </button>
                                   </div>
                                 </div>
 
-                                {/* Cliente */}
-                                <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', lineHeight: 1.3 }}>
-                                  {row.cliente ? row.cliente.split(' ').slice(0, 3).join(' ') : '—'}
+                                <div style={{ fontSize: 11, fontWeight: 600, color: '#374151', lineHeight: 1.2 }}>
+                                  {row.cliente ? row.cliente.split(' ').slice(0, 2).join(' ') : '—'}
                                 </div>
 
-                                {/* Cidade */}
                                 {row.cidade && (
-                                  <div style={{ fontSize: 10, color: '#A1A1AA', marginTop: 1 }}>{row.cidade}</div>
+                                  <div style={{ fontSize: 9, color: '#A1A1AA', marginTop: 1 }}>{row.cidade}</div>
                                 )}
 
-                                {/* Rota */}
                                 {row.tempo_ida_min > 0 && (
-                                  <div style={{ fontSize: 10, color: '#71717A', marginTop: 2, display: 'flex', alignItems: 'center', gap: 3 }}>
-                                    <Truck size={9} />
+                                  <div style={{ fontSize: 9, color: '#71717A', marginTop: 1, display: 'flex', alignItems: 'center', gap: 2 }}>
+                                    <Truck size={8} />
                                     {Math.round(row.tempo_ida_min)}min · {row.distancia_ida_km}km
                                   </div>
                                 )}
 
-                                {/* Observação */}
                                 {obsEditando === row.id ? (
-                                  <div style={{ marginTop: 4 }}>
+                                  <div style={{ marginTop: 3 }}>
                                     <textarea
                                       autoFocus
                                       defaultValue={row.observacoes || ''}
                                       onBlur={e => salvarObs(row.id, e.target.value)}
                                       onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); salvarObs(row.id, (e.target as HTMLTextAreaElement).value) } }}
                                       style={{
-                                        width: '100%', fontSize: 11, padding: '4px 6px', borderRadius: 4,
+                                        width: '100%', fontSize: 10, padding: '3px 5px', borderRadius: 3,
                                         border: '1px solid #C7D2FE', background: '#EEF2FF', outline: 'none',
-                                        resize: 'vertical', minHeight: 32, boxSizing: 'border-box', color: '#18181B',
+                                        resize: 'vertical', minHeight: 24, boxSizing: 'border-box', color: '#18181B',
                                       }}
-                                      placeholder="Observação..."
+                                      placeholder="Obs..."
                                     />
-                                    {salvando[row.id] && <Loader2 size={10} className="animate-spin" style={{ marginTop: 2 }} />}
                                   </div>
                                 ) : (
                                   <div
                                     onClick={() => setObsEditando(row.id)}
                                     style={{
-                                      marginTop: 4, fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'flex-start', gap: 3,
+                                      marginTop: 2, fontSize: 10, cursor: 'pointer', display: 'flex', alignItems: 'flex-start', gap: 2,
                                       color: row.observacoes ? '#4F46E5' : '#D4D4D8',
                                       background: row.observacoes ? '#EEF2FF' : 'transparent',
-                                      padding: row.observacoes ? '3px 6px' : '2px 0', borderRadius: 4,
+                                      padding: row.observacoes ? '2px 4px' : '1px 0', borderRadius: 3,
                                     }}
                                   >
-                                    <MessageSquare size={10} style={{ marginTop: 1, flexShrink: 0 }} />
-                                    <span style={{ lineHeight: 1.3 }}>
-                                      {row.observacoes || 'Obs...'}
+                                    <MessageSquare size={9} style={{ marginTop: 1, flexShrink: 0 }} />
+                                    <span style={{ lineHeight: 1.2, fontSize: 9 }}>
+                                      {row.observacoes ? (row.observacoes.length > 40 ? row.observacoes.substring(0, 40) + '...' : row.observacoes) : 'Obs...'}
                                     </span>
                                   </div>
                                 )}
                               </div>
                             ))}
 
-                            {/* Botão + abaixo dos items */}
                             {!isAdding && (
                               <div
                                 onClick={() => abrirAdd(tec.tecnico_nome, dia)}
                                 style={{
-                                  textAlign: 'center', padding: '4px 0', color: '#D4D4D8', fontSize: 10,
-                                  cursor: 'pointer', borderRadius: 4, transition: 'all 0.15s',
+                                  textAlign: 'center', padding: '2px 0', color: '#D4D4D8', fontSize: 9,
+                                  cursor: 'pointer', borderRadius: 3, transition: 'all 0.15s',
                                 }}
                                 onMouseEnter={e => { e.currentTarget.style.background = '#F4F4F5'; e.currentTarget.style.color = '#71717A' }}
                                 onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#D4D4D8' }}
                               >
-                                <Plus size={12} style={{ display: 'inline' }} />
+                                <Plus size={10} style={{ display: 'inline' }} />
                               </div>
                             )}
                           </div>
                         )}
 
-                        {/* ══ Popup de adicionar ══ */}
+                        {/* Popup de adicionar */}
                         {isAdding && (
                           <div style={{
                             position: 'absolute', top: 0, left: -10, zIndex: 100, width: 360,
                             background: '#fff', borderRadius: 14, border: '1px solid #E4E4E7',
                             boxShadow: '0 12px 40px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.04)',
                           }}>
-                            {/* Header */}
                             <div style={{
                               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                               padding: '14px 16px', borderBottom: `2px solid ${tecColor}`,
                             }}>
                               <div style={{ fontSize: 13, fontWeight: 700, color: '#18181B' }}>
-                                Novo caminho — {tec.tecnico_nome.split(' ')[0]} · {formatDia(dia)}
+                                {tec.tecnico_nome.split(' ')[0]} · {formatDia(dia)}
                               </div>
                               <button onClick={fecharAdd} style={{
                                 background: '#F4F4F5', border: 'none', borderRadius: 6, cursor: 'pointer',
@@ -589,7 +599,6 @@ export default function BlocoAgenda({ tecnicos, ordens }: { tecnicos: Tecnico[];
                               </button>
                             </div>
 
-                            {/* Tabs: Ordens de Serviço | Cliente (manual) */}
                             <div style={{ display: 'flex', borderBottom: '1px solid #E4E4E7' }}>
                               <button onClick={() => setAddMode('os')} style={{
                                 flex: 1, padding: '10px 0', fontSize: 12, fontWeight: addMode === 'os' ? 700 : 400,
@@ -612,14 +621,13 @@ export default function BlocoAgenda({ tecnicos, ordens }: { tecnicos: Tecnico[];
                                 borderBottom: addMode === 'manual' ? `2px solid ${tecColor}` : '2px solid transparent',
                                 marginBottom: -1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
                               }}>
-                                <Plus size={12} /> Cliente (manual)
+                                <Plus size={12} /> Cliente
                               </button>
                             </div>
 
-                            {/* ── Tab: Ordens de Serviço ── */}
+                            {/* Tab: Ordens de Serviço */}
                             {addMode === 'os' && (
                               <div style={{ padding: '12px 14px' }}>
-                                {/* Busca */}
                                 <div style={{ position: 'relative', marginBottom: 10 }}>
                                   <Search size={13} color="#A1A1AA" style={{ position: 'absolute', left: 10, top: 9 }} />
                                   <input
@@ -633,7 +641,6 @@ export default function BlocoAgenda({ tecnicos, ordens }: { tecnicos: Tecnico[];
                                   />
                                 </div>
 
-                                {/* Lista de OS */}
                                 <div style={{ maxHeight: 280, overflowY: 'auto' }}>
                                   {ordsFiltradas.length === 0 ? (
                                     <div style={{ textAlign: 'center', padding: '20px 0', color: '#D4D4D8', fontSize: 12 }}>
@@ -642,6 +649,7 @@ export default function BlocoAgenda({ tecnicos, ordens }: { tecnicos: Tecnico[];
                                   ) : (
                                     ordsFiltradas.map(os => {
                                       const horas = parseFloat(String(os.Qtd_HR || 0)) || 2
+                                      const diasExec = calcDiasExecucao(os.Qtd_HR)
                                       const isTecPrimario = match(tec.tecnico_nome, os.Os_Tecnico)
                                       return (
                                         <div key={os.Id_Ordem} style={{
@@ -686,10 +694,10 @@ export default function BlocoAgenda({ tecnicos, ordens }: { tecnicos: Tecnico[];
                                             {os.Cidade_Cliente && <span>{os.Cidade_Cliente}</span>}
                                             {os.Cidade_Cliente && <span style={{ color: '#E4E4E7' }}>·</span>}
                                             <span>{horas}h</span>
-                                            {os.Endereco_Cliente && (
+                                            {diasExec > 1 && (
                                               <>
                                                 <span style={{ color: '#E4E4E7' }}>·</span>
-                                                <span style={{ display: 'flex', alignItems: 'center', gap: 2 }}><MapPin size={8} /> {os.Endereco_Cliente.substring(0, 30)}</span>
+                                                <span style={{ fontWeight: 600, color: '#6366F1' }}>{diasExec} dias</span>
                                               </>
                                             )}
                                           </div>
@@ -699,7 +707,6 @@ export default function BlocoAgenda({ tecnicos, ordens }: { tecnicos: Tecnico[];
                                   )}
                                 </div>
 
-                                {/* Fechar */}
                                 <div style={{ textAlign: 'center', marginTop: 8 }}>
                                   <button onClick={fecharAdd} style={{
                                     background: '#fff', border: '1px solid #E4E4E7', borderRadius: 8, cursor: 'pointer',
@@ -712,10 +719,9 @@ export default function BlocoAgenda({ tecnicos, ordens }: { tecnicos: Tecnico[];
                               </div>
                             )}
 
-                            {/* ── Tab: Cliente manual ── */}
+                            {/* Tab: Cliente manual */}
                             {addMode === 'manual' && (
                               <div style={{ padding: '14px 16px' }}>
-                                {/* Cliente search */}
                                 <div style={{ marginBottom: 10, position: 'relative' }}>
                                   <label style={{ fontSize: 11, fontWeight: 600, color: '#71717A', marginBottom: 4, display: 'block', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                                     Cliente
@@ -732,7 +738,6 @@ export default function BlocoAgenda({ tecnicos, ordens }: { tecnicos: Tecnico[];
                                       }}
                                     />
                                   </div>
-                                  {/* Dropdown */}
                                   {clienteFilter && !clienteSelecionado && clientesFiltrados.length > 0 && (
                                     <div style={{
                                       position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 110,
@@ -744,7 +749,6 @@ export default function BlocoAgenda({ tecnicos, ordens }: { tecnicos: Tecnico[];
                                           onClick={() => selecionarCliente(c)}
                                           style={{
                                             padding: '8px 12px', cursor: 'pointer', fontSize: 12, borderBottom: '1px solid #F4F4F5',
-                                            transition: 'background 0.1s',
                                           }}
                                           onMouseEnter={e => (e.currentTarget.style.background = '#F4F4F5')}
                                           onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
@@ -765,7 +769,6 @@ export default function BlocoAgenda({ tecnicos, ordens }: { tecnicos: Tecnico[];
                                   </div>
                                 )}
 
-                                {/* Endereço (auto-preenchido) */}
                                 {clienteSelecionado && (
                                   <div style={{ marginBottom: 10, padding: '10px 12px', background: '#F0FDF4', borderRadius: 10, border: '1px solid #BBF7D0' }}>
                                     <div style={{ fontSize: 10, fontWeight: 600, color: '#16A34A', marginBottom: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -780,7 +783,6 @@ export default function BlocoAgenda({ tecnicos, ordens }: { tecnicos: Tecnico[];
                                   </div>
                                 )}
 
-                                {/* Horas + Obs */}
                                 <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: 8, marginBottom: 10 }}>
                                   <div>
                                     <label style={{ fontSize: 11, fontWeight: 600, color: '#71717A', marginBottom: 4, display: 'block', textTransform: 'uppercase' }}>Horas</label>
@@ -804,14 +806,6 @@ export default function BlocoAgenda({ tecnicos, ordens }: { tecnicos: Tecnico[];
                                   </div>
                                 </div>
 
-                                {/* Info de rota */}
-                                {clienteSelecionado && items.length > 0 && items[items.length - 1].coordenadas && (
-                                  <div style={{ marginBottom: 10, fontSize: 10, color: '#71717A', background: '#F4F4F5', padding: '5px 10px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
-                                    <Truck size={10} /> Rota a partir de: <strong>{items[items.length - 1].cliente?.split(' ').slice(0, 2).join(' ')}</strong>
-                                  </div>
-                                )}
-
-                                {/* Botões */}
                                 <div style={{ display: 'flex', gap: 8 }}>
                                   <button onClick={() => adicionarManual(tec.tecnico_nome, dia)}
                                     disabled={!clienteSelecionado || addSalvando}
@@ -820,7 +814,6 @@ export default function BlocoAgenda({ tecnicos, ordens }: { tecnicos: Tecnico[];
                                       background: clienteSelecionado ? tecColor : '#E4E4E7',
                                       color: clienteSelecionado ? '#fff' : '#A1A1AA',
                                       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
-                                      boxShadow: clienteSelecionado ? `0 2px 6px ${tecColor}30` : 'none',
                                     }}>
                                     {addSalvando ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
                                     Adicionar

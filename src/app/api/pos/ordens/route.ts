@@ -68,14 +68,14 @@ async function autoMoveByDate() {
   }
 
   // 2. Execução → Aguardando ordem Técnico
-  //    SÓ move se tem Previsao_Faturamento preenchida E já passou (período completo encerrado)
+  //    SÓ move se tem Previsao_Faturamento preenchida E chegou o dia (ou já passou)
   //    Se não tem Previsao_Faturamento, NÃO move automaticamente — o admin decide
   const { data: execAtrasadas } = await supabase
     .from(TBL_OS)
     .select("Id_Ordem, Status, Previsao_Execucao, Previsao_Faturamento, Os_Tecnico")
     .not("Previsao_Execucao", "is", null)
     .not("Previsao_Faturamento", "is", null)
-    .lt("Previsao_Faturamento", hojeISO)
+    .lte("Previsao_Faturamento", hojeISO)
     .in("Status", ["Execução"]);
 
   for (const os of execAtrasadas || []) {

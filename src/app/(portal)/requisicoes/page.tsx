@@ -441,7 +441,12 @@ function RequisicoesPageInner() {
               requisicoes={requisicoes}
               onUpdate={async (id: number, dados: Record<string, unknown>) => {
                 setRequisicoes(prev => prev.map(r => r.id === id ? { ...r, ...dados } : r));
-                await supabase.from('Requisicao').update(dados).eq('id', id);
+                const { error } = await supabase.from('Requisicao').update(dados).eq('id', id);
+                if (error) {
+                  console.error('[Requisições] Erro ao atualizar:', error);
+                  carregarDados(true); // Recarrega para reverter estado local
+                  return;
+                }
                 auditLog({ sistema: 'requisicoes', acao: 'editar', entidade: 'requisicao', entidade_id: String(id), detalhes: dados });
                 const req = requisicoes.find(r => r.id === id);
                 const desc = dados.status ? `Status: ${String(dados.status)}` : (req?.titulo || `Requisição #${id}`);
@@ -628,7 +633,12 @@ function RequisicoesPageInner() {
         <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[100] flex items-center justify-center p-4 print:hidden">
           <div className="w-full max-w-5xl bg-white rounded-2xl border border-zinc-200 overflow-y-auto max-h-[90vh] shadow-xl">
             <FormReq onSave={async (nova: Record<string, unknown>) => {
-              await supabase.from('Requisicao').insert([nova]);
+              const { error } = await supabase.from('Requisicao').insert([nova]);
+              if (error) {
+                console.error('[Requisições] Erro ao criar:', error);
+                alert('Erro ao criar requisição: ' + error.message);
+                return;
+              }
               auditLog({ sistema: 'requisicoes', acao: 'criar', entidade: 'requisicao', entidade_label: String(nova.titulo || '') });
               notificarUsuariosReq('requisicao', `${userName} criou uma requisição`, String(nova.titulo || 'Nova requisição'), '/requisicoes');
               setAbaAtiva('kanban');
