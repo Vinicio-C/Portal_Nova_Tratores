@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
+import { notificarAdminsClient } from '@/hooks/useNotificarAdmins'
 import { formatarDataBR, formatarMoeda, calcTempo } from '@/lib/financeiro/utils'
 import { STATUS_CONFIG_NF as STATUS_CONFIG } from '@/lib/financeiro/constants'
 import {
@@ -187,6 +188,7 @@ useEffect(() => {
 const handleUpdateField = async (id, field, value) => {
       if (tarefaSelecionada?.status === 'concluido') return;
       await supabase.from('Chamado_NF').update({ [field]: value }).eq('id', id);
+      notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} alterou NF #${id}`, `Campo: ${field}`, `/financeiro/kanban-financeiro`)
       carregarDados();
 };
 
@@ -216,6 +218,9 @@ const handleUpdateFileDirect = async (id, field, file) => {
         // Notificar se mudou de fase
         if (updateData.status === 'enviar_cliente' && tarefaSelecionada) {
           notificarMovimento(tarefaSelecionada, 'enviar_cliente', `NF #${id} - ${tarefaSelecionada.nom_cliente || ''} — Boleto anexado, enviar ao cliente`);
+          notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} anexou boleto NF #${id}`, `Cliente: ${tarefaSelecionada.nom_cliente || ''}`, `/financeiro/kanban-financeiro`)
+        } else {
+          notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} atualizou arquivo NF #${id}`, `Campo: ${field}`, `/financeiro/kanban-financeiro`)
         }
 
         if (tarefaSelecionada) {
@@ -233,6 +238,7 @@ const handleActionMoveStatus = async (t, newStatus) => {
       const { error } = await supabase.from('Chamado_NF').update({ status: newStatus }).eq('id', t.id);
       if (!error) {
           supabase.from('Chamado_NF').update({ status_changed_at: now }).eq('id', t.id).catch(() => {});
+          notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} moveu NF #${t.id} → ${newStatus}`, `Cliente: ${t.nom_cliente || ''}`, `/financeiro/kanban-financeiro`)
           alert(newStatus === 'concluido' ? "Card Concluido!" : "Card movido!");
           carregarDados();
       }
@@ -249,6 +255,7 @@ const handleActionCobrarCliente = async (t) => {
       }).eq('id', t.id);
       if (!error) {
           supabase.from('Chamado_NF').update({ status_changed_at: now }).eq('id', t.id).catch(() => {});
+          notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} solicitou recobrança #${newVal}`, `NF #${t.id} — ${t.nom_cliente || ''}`, `/financeiro/kanban-financeiro`)
           alert("Recobrança enviada ao Pós-Vendas!");
           setTarefaSelecionada(null);
           carregarDados();
@@ -272,6 +279,7 @@ const handleActionPedirRecobranca = async (t, moverParaVencido = true) => {
     const { error } = await supabase.from('Chamado_NF').update(updateData).eq('id', t.id);
     if (!error) {
         if (moverParaVencido) supabase.from('Chamado_NF').update({ status_changed_at: now }).eq('id', t.id).catch(() => {});
+        notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} solicitou recobrança #${newVal}`, `NF #${t.id} — ${t.nom_cliente || ''}`, `/financeiro/kanban-financeiro`)
         alert("Recobrança enviada ao Pós-Vendas!");
         carregarDados();
     }
@@ -283,6 +291,7 @@ const handleActionSomenteVencido = async (t) => {
     const { error } = await supabase.from('Chamado_NF').update({ status: 'vencido' }).eq('id', t.id);
     if (!error) {
         supabase.from('Chamado_NF').update({ status_changed_at: now }).eq('id', t.id).catch(() => {});
+        notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} moveu NF #${t.id} para Vencido`, `Cliente: ${t.nom_cliente || ''}`, `/financeiro/kanban-financeiro`)
         alert("Card movido para Vencido!");
         carregarDados();
     }
@@ -306,6 +315,7 @@ const handleGerarBoletoFaturamentoFinal = async (id, fileArg) => {
     notificarMovimento(t, 'enviar_cliente', `NF #${id} - ${t.nom_cliente || ''} — Boleto gerado`);
     await supabase.from('Chamado_NF').update(updateData).eq('id', id);
     supabase.from('Chamado_NF').update({ status_changed_at: new Date().toISOString() }).eq('id', id).catch(() => {});
+    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} gerou boleto NF #${id}`, `Cliente: ${t.nom_cliente || ''}`, `/financeiro/kanban-financeiro`)
     setTarefaSelecionada(null); carregarDados();
 };
 

@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/pos/supabase";
 import { TBL_OS, PHASES } from "@/lib/pos/constants";
 import { formatarDataBR, safeGet } from "@/lib/pos/utils";
@@ -29,7 +29,21 @@ const CORES_FASE: Record<string, string> = {
   "Executada aguardando cliente": "#A78BFA",
 };
 
-export async function GET() {
+// Fases consideradas "atrasadas" por natureza (ordem parada esperando algo)
+const FASES_ATRASO = new Set([
+  "Execução Procurando peças",
+  "Execução aguardando peças (em transporte)",
+  "Executada aguardando comercial",
+  "Aguardando outros",
+  "Aguardando ordem Técnico",
+  "Executada aguardando cliente",
+]);
+
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const filtroTecnico = searchParams.get("tecnico") || "todos";
+  const filtroTipo = searchParams.get("tipo") || "todas"; // "todas" | "atrasadas"
+
   const { data: ordens } = await supabase.from(TBL_OS).select("*").order("Id_Ordem", { ascending: false });
 
   const allRows = (ordens || []).map((row) => {
@@ -49,12 +63,37 @@ export async function GET() {
       horas: qtdHr,
       km: qtdKm,
       total: vTotal,
+      previsaoExec: (safeGet(row, "Previsao_Execucao") as string) || "",
+      previsaoFat: (safeGet(row, "Previsao_Faturamento") as string) || "",
     };
   });
 
-  // Apenas fases ativas (exclui Concluída e Cancelada)
-  const rows = allRows.filter((o) => !FASES_EXCLUIDAS.has(o.status));
+  // Filtrar fases ativas
+  let rows = allRows.filter((o) => !FASES_EXCLUIDAS.has(o.status));
+
+  // Filtro por técnico
+  if (filtroTecnico !== "todos") {
+    rows = rows.filter((o) => o.tecnico === filtroTecnico);
+  }
+
+  // Filtro por tipo: atrasadas = fases de espera OU com previsão vencida
+  if (filtroTipo === "atrasadas") {
+    const hoje = new Date().toISOString().split("T")[0];
+    rows = rows.filter((o) => {
+      if (FASES_ATRASO.has(o.status)) return true;
+      if (o.previsaoExec && o.previsaoExec < hoje) return true;
+      if (o.previsaoFat && o.previsaoFat < hoje) return true;
+      return false;
+    });
+  }
+
   const totalGeral = rows.reduce((s, o) => s + o.total, 0);
+
+  // Subtítulo do filtro
+  const subtitulos: string[] = [];
+  if (filtroTecnico !== "todos") subtitulos.push(`Técnico: ${filtroTecnico}`);
+  if (filtroTipo === "atrasadas") subtitulos.push("Apenas ordens atrasadas");
+  const subtituloTexto = subtitulos.length > 0 ? ` &nbsp;|&nbsp; ${subtitulos.join(" &nbsp;|&nbsp; ")}` : "";
 
   // Agrupa por fase na ordem do PHASES
   const fasesAtivas = PHASES.filter((p) => !FASES_EXCLUIDAS.has(p));
@@ -115,7 +154,7 @@ export async function GET() {
 <script>window.onload = function() { window.print(); }</script>
 </head><body>
 <h1>Nova Tratores - Ordens em Aberto</h1>
-<div class="info">Gerado em: ${new Date().toLocaleDateString("pt-BR")} &nbsp;|&nbsp; ${rows.length} ordens ativas</div>
+<div class="info">Gerado em: ${new Date().toLocaleDateString("pt-BR")} &nbsp;|&nbsp; ${rows.length} ordens${subtituloTexto}</div>
 <div class="summary">
   ${Object.entries(agrupado).map(([fase, items]) => {
     const cor = CORES_FASE[fase] || "#64748B";

@@ -5,13 +5,13 @@ import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
 import { supabase } from '@/lib/supabase'
 import BlocoVisaoGeral from '@/components/painel-mecanicos/BlocoVisaoGeral'
-import BlocoOrdens from '@/components/painel-mecanicos/BlocoOrdens'
+import BlocoAgenda from '@/components/painel-mecanicos/BlocoAgenda'
 import BlocoRequisicoes from '@/components/painel-mecanicos/BlocoRequisicoes'
 import BlocoAlertas, { type Alerta } from '@/components/painel-mecanicos/BlocoAlertas'
 import {
   Users, FileText, Package, AlertTriangle, RefreshCw,
   ChevronDown, Star, Clock, Wrench, AlertOctagon,
-  ThumbsUp, ThumbsDown, X, LayoutDashboard
+  ThumbsUp, ThumbsDown, X, LayoutDashboard, Calendar
 } from 'lucide-react'
 
 // ─── Types ───────────────────────────────────────────────────────
@@ -430,7 +430,7 @@ function PainelMecanicosPage() {
 
   const TABS: { id: Bloco; label: string; icon: React.ReactNode; count?: number }[] = [
     { id: 'visao', label: 'Visão Geral', icon: <LayoutDashboard size={15} /> },
-    { id: 'ordens', label: 'Ordens', icon: <FileText size={15} />, count: ordensAtivasCount },
+    { id: 'ordens', label: 'Agenda', icon: <Calendar size={15} />, count: ordensAtivasCount },
     { id: 'requisicoes', label: 'Requisições', icon: <Package size={15} />, count: reqsPedidoCount },
     { id: 'alertas', label: 'Alertas', icon: <AlertTriangle size={15} />, count: alertasAbertosCount },
     { id: 'tecnicos', label: 'Técnicos', icon: <Users size={15} />, count: tecnicosAtivos.length },
@@ -516,9 +516,9 @@ function PainelMecanicosPage() {
         <BlocoVisaoGeral tecnicos={tecnicos} ordens={ordens} caminhos={caminhos} />
       )}
 
-      {/* ═══ ORDENS ═══ */}
+      {/* ═══ AGENDA ═══ */}
       {blocoAtivo === 'ordens' && (
-        <BlocoOrdens tecnicos={tecnicos} ordens={ordens} />
+        <BlocoAgenda tecnicos={tecnicos} ordens={ordens} />
       )}
 
       {/* ═══ REQUISIÇÕES ═══ */}

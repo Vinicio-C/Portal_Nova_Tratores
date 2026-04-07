@@ -3,6 +3,7 @@ import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
+import { notificarAdminsClient } from '@/hooks/useNotificarAdmins'
 import { formatarDataBR, formatarMoeda, calcTempo } from '@/lib/financeiro/utils'
 import {
   X, PlusCircle, FileText, Download,
@@ -160,6 +161,7 @@ export default function Kanban() {
 
  const handleUpdateField = async (id, field, value) => {
     await supabase.from('Chamado_NF').update({ [field]: value }).eq('id', id);
+    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} alterou NF #${id}`, `Campo: ${field}`, `/financeiro/kanban`)
     carregarDados();
     if(tarefaSelecionada) setTarefaSelecionada(prev => ({ ...prev, [field]: value }));
  };
@@ -192,6 +194,7 @@ export default function Kanban() {
         tarefa: 'Pagamento Realizado'
       }).eq('id', t.id);
 
+      notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} anexou comprovante NF #${t.id}`, `Cliente: ${t.nom_cliente || ''}`, `/financeiro/kanban`)
       alert("Comprovante anexado! Tarefa enviada ao Financeiro.");
       carregarDados();
       if (tarefaSelecionada) setTarefaSelecionada(prev => ({ ...prev, comprovante_pagamento: linkData.publicUrl, tarefa: 'Pagamento Realizado' }));
@@ -200,6 +203,7 @@ export default function Kanban() {
 
  const handleConfirmarEnvioPV = async (t) => {
     await supabase.from('Chamado_NF').update({ status: 'aguardando_vencimento', tarefa: 'Aguardando Vencimento' }).eq('id', t.id);
+    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} enviou boleto ao cliente`, `NF #${t.id} — ${t.nom_cliente || ''}`, `/financeiro/kanban`)
     alert("Card movido para Aguardando Vencimento!");
     setTarefaSelecionada(null);
     carregarDados();
@@ -207,11 +211,13 @@ export default function Kanban() {
 
  const handleMoverSemBoleto = async (t) => {
     await supabase.from('Chamado_NF').update({ status: 'sem_boleto', tarefa: 'Cliente Sem Boleto' }).eq('id', t.id);
+    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} moveu NF #${t.id} para Sem Boleto`, `Cliente: ${t.nom_cliente || ''}`, `/financeiro/kanban`)
     carregarDados();
  };
 
  const handleMoverParaPago = async (t) => {
     await supabase.from('Chamado_NF').update({ status: 'pago', tarefa: 'Pagamento Confirmado' }).eq('id', t.id);
+    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} confirmou pagamento NF #${t.id}`, `Cliente: ${t.nom_cliente || ''}`, `/financeiro/kanban`)
     carregarDados();
  };
 

@@ -214,7 +214,7 @@ export default function PPVDrawer({
     setEnviandoOmie(true);
     try {
       const res = await api.enviarParaOmie(ppvId, userProfile?.nome || "");
-      showToast("success", `Pedido Omie nº ${res.numeroPedido} criado! PPV fechado.`);
+      showToast("success", `Pedido Omie nº ${res.numeroPedido} criado! PPV concluída.`);
       onDirty?.();
       onClose();
     } catch (e) {
@@ -494,7 +494,7 @@ export default function PPVDrawer({
                 {/* ── Footer ── */}
                 <div className="ppv-drawer-footer">
                   <button className="ppv-btn-cancel" onClick={onClose}>Cancelar</button>
-                  {status === "Executada aguardando comercial" && !pedidoOmie && (
+                  {!pedidoOmie && status !== "Concluída" && status !== "Cancelada" && (
                     <button
                       className="ppv-btn-omie"
                       onClick={enviarOmie}

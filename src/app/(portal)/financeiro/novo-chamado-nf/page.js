@@ -4,10 +4,13 @@ import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
 import { useAuditLog } from '@/hooks/useAuditLog'
+import { useAuth } from '@/hooks/useAuth'
+import { notificarAdminsClient } from '@/hooks/useNotificarAdmins'
 import { FileText, Calendar, CreditCard, User, Hash, CheckCircle, Upload, Paperclip, X } from 'lucide-react'
 
 export default function NovoChamadoNF() {
   const { log: auditLog } = useAuditLog()
+  const { userProfile } = useAuth()
   const [todosUsuarios, setTodosUsuarios] = useState([])
   const [tipoNF, setTipoNF] = useState('')
   const [loading, setLoading] = useState(false)
@@ -86,6 +89,7 @@ export default function NovoChamadoNF() {
 
       if (error) throw error
       auditLog({ sistema: 'financeiro', acao: 'criar', entidade: 'Chamado_NF', entidade_label: `NF ${formData.nom_cliente} - R$ ${formData.valor_servico}`, detalhes: { cliente: formData.nom_cliente, valor: formData.valor_servico, forma_pagamento: formData.forma_pagamento } })
+      notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} criou faturamento`, `Cliente: ${formData.nom_cliente} — R$ ${formData.valor_servico}`, '/financeiro')
       alert("Faturamento registrado com sucesso.");
       router.push('/financeiro')
     } catch (err) {

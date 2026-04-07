@@ -4,6 +4,8 @@ import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
 import { useAuditLog } from '@/hooks/useAuditLog'
+import { useAuth } from '@/hooks/useAuth'
+import { notificarAdminsClient } from '@/hooks/useNotificarAdmins'
 import {
   FileText, Calendar, User, Hash,
   CheckCircle, Upload, Paperclip, X, CreditCard
@@ -11,6 +13,7 @@ import {
 
 export default function NovoPagarReceber() {
   const { log: auditLog } = useAuditLog()
+  const { userProfile } = useAuth()
   const [loading, setLoading] = useState(false)
   const [pageLoading, setPageLoading] = useState(true)
   const [fornecedores, setFornecedores] = useState([])
@@ -86,6 +89,7 @@ export default function NovoPagarReceber() {
       }])
       if (error) throw error
       auditLog({ sistema: 'financeiro', acao: 'criar', entidade: 'finan_pagar', entidade_label: `Pagar - ${formData.entidade} - R$ ${formData.valor}`, detalhes: { fornecedor: formData.entidade, valor: formData.valor, metodo: formData.metodo, nf: formData.numero_NF } })
+      notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} criou registro financeiro`, `Fornecedor: ${formData.entidade} — R$ ${formData.valor}`, '/financeiro')
       alert("Processo criado com sucesso.");
       router.push('/financeiro')
     } catch (e) { alert(e.message) } finally { setLoading(false) }

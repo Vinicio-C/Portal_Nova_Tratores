@@ -327,7 +327,19 @@
       "Bash(node -e \"\nconst { createClient } = require\\('C:/projetos/portal/node_modules/@supabase/supabase-js'\\);\nconst supabase = createClient\\('https://citrhumdkfivdzbmayde.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpdHJodW1ka2ZpdmR6Ym1heWRlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxMDgyNzUsImV4cCI6MjA4NDY4NDI3NX0.83x3-NrKoJgtIuSE7Jjsaj0zH-b-XJ3Z8i3XkBkwVoU'\\);\n\nasync function run\\(\\) {\n  // Peek at Data format\n  const { data: sample } = await supabase.from\\('Ordem_Servico'\\).select\\('Data'\\).limit\\(3\\);\n  console.log\\('Sample Data:', JSON.stringify\\(sample\\)\\);\n}\nrun\\(\\);\n\" 2>&1)",
       "Bash(node -e \"\nasync function run\\(\\) {\n  const BASE = 'https://app.omie.com.br/api/v1';\n  const KEY = '2729522270475';\n  const SECRET = '113d785bb86c48d064889d4d73348131';\n\n  // Primeiro, vamos ver a estrutura de resposta com 1 registro\n  const payload = {\n    call: 'ListarOS',\n    app_key: KEY,\n    app_secret: SECRET,\n    param: [{\n      pagina: 1,\n      registros_por_pagina: 1,\n      filtrar_por_data_de: '01/01/2026',\n      filtrar_por_data_ate: '31/12/2026'\n    }]\n  };\n\n  const res = await fetch\\(BASE + '/servicos/os/', {\n    method: 'POST',\n    headers: { 'Content-Type': 'application/json' },\n    body: JSON.stringify\\(payload\\)\n  }\\);\n\n  const data = await res.json\\(\\);\n  console.log\\('Keys:', Object.keys\\(data\\)\\);\n  console.log\\('Total paginas:', data.total_de_paginas\\);\n  console.log\\('Total registros:', data.total_de_registros\\);\n  if \\(data.osCadastro && data.osCadastro[0]\\) {\n    console.log\\('\\\\\\\\nCampos OS:', Object.keys\\(data.osCadastro[0]\\)\\);\n    const os = data.osCadastro[0];\n    console.log\\('\\\\\\\\nCabecalho keys:', Object.keys\\(os.Cabecalho || {}\\)\\);\n    console.log\\('\\\\\\\\nCabecalho:', JSON.stringify\\(os.Cabecalho, null, 2\\)\\);\n  }\n  if \\(data.faultstring\\) console.log\\('ERRO:', data.faultstring\\);\n}\nrun\\(\\).catch\\(e => console.error\\(e\\)\\);\n\" 2>&1)",
       "Bash(cd C:/projetos/portal && node scripts/relatorio-clientes-omie.js 2>&1)",
-      "Bash(cd C:/projetos/portal && node scripts/gerar-pdf-clientes.js 2>&1)"
+      "Bash(cd C:/projetos/portal && node scripts/gerar-pdf-clientes.js 2>&1)",
+      "Bash(cd C:/projetos/portal && node scripts/migrar-emails-revisao.js)",
+      "Bash(cd C:/projetos/portal && node scripts/linkar-pdfs-revisao.js)",
+      "Bash(cd C:/projetos/portal && node scripts/migrar-pdfs-gmail.js)",
+      "Bash(find /c/projetos/portal/src -type f \\\\\\( -name \"*relator*\" -o -name \"*report*\" \\\\\\) 2>/dev/null | head -20)",
+      "Bash(find /c/projetos/portal/src/app/api -type f -name \"*.ts\" -o -name \"*.js\" 2>/dev/null | head -20)",
+      "Bash(ls -la /c/projetos/portal/src/app/\\\\\\(portal\\\\\\)/financeiro/relatorio-pagar/ 2>/dev/null)",
+      "Bash(grep -r \"relatorio\\\\|relatório\" /c/projetos/portal/src --include=\"*.jsx\" --include=\"*.tsx\" --include=\"*.js\" --include=\"*.ts\" -l 2>/dev/null | head -20)",
+      "Bash(find /c/projetos/portal/src/app -path \"*financeiro*\" -name \"page.*\" 2>/dev/null | sort)",
+      "Bash(wc -l \"C:\\\\projetos\\\\portal\\\\src\\\\app\\\\\\(portal\\)\\\\painel-mecanicos\\\\page.tsx\")",
+      "Bash(find /c/projetos/portal -type f \\\\\\( -name \"*.ts\" -o -name \"*.tsx\" \\\\\\) | xargs grep -l \"tecnico_caminhos\" | grep -v node_modules)",
+      "Bash(find /c/projetos/portal/src -name \"*.ts\" -o -name \"*.tsx\" | xargs grep -l \"agenda_tecnico\" | head -10)",
+      "Bash(grep -rn \"CREATE TABLE.*Requisicao\\\\|INSERT INTO.*Requisicao\" /c/projetos/portal/sql/ /c/projetos/portal/*.sql 2>/dev/null | head -20)"
     ]
   }
 }

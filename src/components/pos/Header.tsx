@@ -7,13 +7,17 @@ interface HeaderProps {
   onSearch: (term: string) => void;
   onNewOS: () => void;
   onNewClient: () => void;
-  onGenerateReport: () => void;
+  onGenerateReport: (filtros: { tecnico: string; tipo: string }) => void;
   onSync?: () => Promise<void>;
   onLembretes?: () => void;
+  tecnicos?: string[];
 }
 
-export default function Header({ searchTerm, onSearch, onNewOS, onNewClient, onGenerateReport, onSync, onLembretes }: HeaderProps) {
+export default function Header({ searchTerm, onSearch, onNewOS, onNewClient, onGenerateReport, onSync, onLembretes, tecnicos = [] }: HeaderProps) {
   const [syncing, setSyncing] = useState(false);
+  const [showFiltroRelatorio, setShowFiltroRelatorio] = useState(false);
+  const [filtroTecnico, setFiltroTecnico] = useState("todos");
+  const [filtroTipo, setFiltroTipo] = useState("todas");
 
   const handleSync = async () => {
     if (!onSync || syncing) return;
@@ -25,25 +29,127 @@ export default function Header({ searchTerm, onSearch, onNewOS, onNewClient, onG
     }
   };
 
+  const handleGerar = () => {
+    setShowFiltroRelatorio(false);
+    onGenerateReport({ tecnico: filtroTecnico, tipo: filtroTipo });
+  };
+
   return (
-    <header>
-      <div className="brand-area">
-        <div className="brand-icon"><i className="fas fa-tractor" /></div>
-        <div style={{ fontSize: 20, fontWeight: 700 }}>NOVA TRATORES</div>
-      </div>
-      <div className="search-box" style={{ position: "relative" }}>
-        <i className="fas fa-search" style={{ position: "absolute", left: 15, top: "50%", transform: "translateY(-50%)", color: "#7A6E5D" }} />
-        <input type="text" className="search-input" placeholder="Pesquisar cliente ou OS..." value={searchTerm} onChange={(e) => onSearch(e.target.value)} />
-      </div>
-      <div className="header-actions">
-        <button className="btn-top btn-report" onClick={handleSync} disabled={syncing} title="Sincronizar clientes e projetos do Omie">
-          <i className={`fas fa-sync-alt${syncing ? " fa-spin" : ""}`} /> {syncing ? "SINCRONIZANDO..." : "SINCRONIZAR"}
-        </button>
-        <button className="btn-top btn-lembretes" onClick={onLembretes}><i className="fas fa-bell" /> LEMBRETES</button>
-        <button className="btn-top btn-report" onClick={onGenerateReport}><i className="fas fa-file-invoice" /> GERAR RELATÓRIO</button>
-        <button className="btn-top btn-cli" onClick={onNewClient}><i className="fas fa-user-plus" /> CRIAR CLIENTE</button>
-        <button className="btn-top btn-new" onClick={onNewOS}><i className="fas fa-plus" /> NOVA ORDEM</button>
-      </div>
-    </header>
+    <>
+      <header>
+        <div className="brand-area">
+          <div className="brand-icon"><i className="fas fa-tractor" /></div>
+          <div style={{ fontSize: 20, fontWeight: 700 }}>NOVA TRATORES</div>
+        </div>
+        <div className="search-box" style={{ position: "relative" }}>
+          <i className="fas fa-search" style={{ position: "absolute", left: 15, top: "50%", transform: "translateY(-50%)", color: "#7A6E5D" }} />
+          <input type="text" className="search-input" placeholder="Pesquisar cliente ou OS..." value={searchTerm} onChange={(e) => onSearch(e.target.value)} />
+        </div>
+        <div className="header-actions">
+          <button className="btn-top btn-report" onClick={handleSync} disabled={syncing} title="Sincronizar clientes e projetos do Omie">
+            <i className={`fas fa-sync-alt${syncing ? " fa-spin" : ""}`} /> {syncing ? "SINCRONIZANDO..." : "SINCRONIZAR"}
+          </button>
+          <button className="btn-top btn-lembretes" onClick={onLembretes}><i className="fas fa-bell" /> LEMBRETES</button>
+          <button className="btn-top btn-report" onClick={() => setShowFiltroRelatorio(true)}><i className="fas fa-file-invoice" /> GERAR RELATÓRIO</button>
+          <button className="btn-top btn-cli" onClick={onNewClient}><i className="fas fa-user-plus" /> CRIAR CLIENTE</button>
+          <button className="btn-top btn-new" onClick={onNewOS}><i className="fas fa-plus" /> NOVA ORDEM</button>
+        </div>
+      </header>
+
+      {showFiltroRelatorio && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}
+          onClick={() => setShowFiltroRelatorio(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "#fff", borderRadius: 16, padding: 32, width: 420, maxWidth: "90vw",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+            }}
+          >
+            <h3 style={{ margin: "0 0 24px", fontSize: 18, fontWeight: 700, color: "#1E293B" }}>
+              <i className="fas fa-filter" style={{ marginRight: 8, color: "#6366F1" }} />
+              Filtros do Relatório
+            </h3>
+
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#64748B", textTransform: "uppercase", marginBottom: 8 }}>
+                Técnico
+              </label>
+              <select
+                value={filtroTecnico}
+                onChange={(e) => setFiltroTecnico(e.target.value)}
+                style={{
+                  width: "100%", padding: "10px 14px", borderRadius: 8, border: "1px solid #E2E8F0",
+                  fontSize: 14, color: "#1E293B", background: "#F8FAFC", cursor: "pointer",
+                }}
+              >
+                <option value="todos">Todos os técnicos</option>
+                {tecnicos.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ marginBottom: 28 }}>
+              <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#64748B", textTransform: "uppercase", marginBottom: 8 }}>
+                Tipo de ordens
+              </label>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button
+                  onClick={() => setFiltroTipo("todas")}
+                  style={{
+                    flex: 1, padding: "12px 16px", borderRadius: 10, border: "2px solid",
+                    borderColor: filtroTipo === "todas" ? "#6366F1" : "#E2E8F0",
+                    background: filtroTipo === "todas" ? "#EEF2FF" : "#fff",
+                    color: filtroTipo === "todas" ? "#4F46E5" : "#64748B",
+                    fontWeight: 600, fontSize: 13, cursor: "pointer", transition: "all 0.15s",
+                  }}
+                >
+                  <i className="fas fa-list" style={{ marginRight: 6 }} />
+                  Todas
+                </button>
+                <button
+                  onClick={() => setFiltroTipo("atrasadas")}
+                  style={{
+                    flex: 1, padding: "12px 16px", borderRadius: 10, border: "2px solid",
+                    borderColor: filtroTipo === "atrasadas" ? "#EF4444" : "#E2E8F0",
+                    background: filtroTipo === "atrasadas" ? "#FEF2F2" : "#fff",
+                    color: filtroTipo === "atrasadas" ? "#DC2626" : "#64748B",
+                    fontWeight: 600, fontSize: 13, cursor: "pointer", transition: "all 0.15s",
+                  }}
+                >
+                  <i className="fas fa-clock" style={{ marginRight: 6 }} />
+                  Atrasadas
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                onClick={() => setShowFiltroRelatorio(false)}
+                style={{
+                  flex: 1, padding: "12px", borderRadius: 10, border: "1px solid #E2E8F0",
+                  background: "#fff", color: "#64748B", fontWeight: 600, fontSize: 14, cursor: "pointer",
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleGerar}
+                style={{
+                  flex: 1, padding: "12px", borderRadius: 10, border: "none",
+                  background: "#1E293B", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer",
+                }}
+              >
+                <i className="fas fa-file-invoice" style={{ marginRight: 6 }} />
+                Gerar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

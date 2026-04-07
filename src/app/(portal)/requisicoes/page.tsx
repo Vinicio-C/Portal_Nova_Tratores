@@ -18,7 +18,9 @@ import {
 } from 'lucide-react';
 
 function RequisicoesPageInner() {
+  const { userProfile } = useAuth();
   const { log: auditLog } = useAuditLog();
+  const userName = userProfile?.nome || 'Alguém';
   const [abaAtiva, setAbaAtiva] = useState('kanban');
   const [requisicoes, setRequisicoes] = useState<any[]>([]);
   const [usuarios, setUsuarios] = useState<any[]>([]);
@@ -441,6 +443,9 @@ function RequisicoesPageInner() {
                 setRequisicoes(prev => prev.map(r => r.id === id ? { ...r, ...dados } : r));
                 await supabase.from('Requisicao').update(dados).eq('id', id);
                 auditLog({ sistema: 'requisicoes', acao: 'editar', entidade: 'requisicao', entidade_id: String(id), detalhes: dados });
+                const req = requisicoes.find(r => r.id === id);
+                const desc = dados.status ? `Status: ${String(dados.status)}` : (req?.titulo || `Requisição #${id}`);
+                notificarUsuariosReq('requisicao', `${userName} alterou requisição #${id}`, desc, '/requisicoes');
               }}
               onPrint={dispararImpressao}
               idDestaque={idDestaque}
@@ -530,6 +535,7 @@ function RequisicoesPageInner() {
                       const ids = requisicoes.filter(r => r.status === 'lixeira').map(r => r.id);
                       await supabase.from('Requisicao').delete().in('id', ids);
                       auditLog({ sistema: 'requisicoes', acao: 'deletar', entidade: 'requisicao', detalhes: { quantidade: ids.length, tipo: 'esvaziar_lixeira' } });
+                      notificarUsuariosReq('requisicao', `${userName} esvaziou a lixeira`, `${ids.length} requisições excluídas`, '/requisicoes');
                       carregarDados(true);
                     }}
                     className="bg-red-50 hover:bg-red-600 border border-red-200 text-red-600 hover:text-white px-5 py-2.5 rounded-xl font-semibold text-xs uppercase tracking-wider flex items-center gap-2 transition-all"
@@ -570,6 +576,7 @@ function RequisicoesPageInner() {
                             await supabase.from('Requisicao').update({ status: 'pedido' }).eq('id', r.id);
                             setRequisicoes(prev => prev.map(x => x.id === r.id ? { ...x, status: 'pedido' } : x));
                             auditLog({ sistema: 'requisicoes', acao: 'mover_status', entidade: 'requisicao', entidade_id: String(r.id), entidade_label: r.titulo, detalhes: { de: 'lixeira', para: 'pedido' } });
+                            notificarUsuariosReq('requisicao', `${userName} restaurou requisição #${r.id}`, r.titulo || '', '/requisicoes');
                           }}
                           className="flex-1 bg-zinc-50 hover:bg-red-600 border border-zinc-200 hover:border-red-500 text-zinc-600 hover:text-white py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all flex items-center justify-center gap-2"
                         >
@@ -581,6 +588,7 @@ function RequisicoesPageInner() {
                             await supabase.from('Requisicao').delete().eq('id', r.id);
                             setRequisicoes(prev => prev.filter(x => x.id !== r.id));
                             auditLog({ sistema: 'requisicoes', acao: 'deletar', entidade: 'requisicao', entidade_id: String(r.id), entidade_label: r.titulo });
+                            notificarUsuariosReq('requisicao', `${userName} excluiu requisição #${r.id}`, r.titulo || '', '/requisicoes');
                           }}
                           className="w-10 h-10 flex items-center justify-center rounded-xl bg-red-50 hover:bg-red-600 border border-red-200 text-red-500 hover:text-white transition-all"
                           title="Excluir permanentemente"
@@ -622,6 +630,7 @@ function RequisicoesPageInner() {
             <FormReq onSave={async (nova: Record<string, unknown>) => {
               await supabase.from('Requisicao').insert([nova]);
               auditLog({ sistema: 'requisicoes', acao: 'criar', entidade: 'requisicao', entidade_label: String(nova.titulo || '') });
+              notificarUsuariosReq('requisicao', `${userName} criou uma requisição`, String(nova.titulo || 'Nova requisição'), '/requisicoes');
               setAbaAtiva('kanban');
               carregarDados(true);
             }} />

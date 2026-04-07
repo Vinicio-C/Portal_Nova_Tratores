@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/pos/supabase";
 import { buscarEnderecos } from "@/lib/pos/enderecos";
-import { geocodificar, rotaDaOficina } from "@/lib/pos/ors";
+import { geocodificar, rotaDaOficina, calcularRota, OFICINA } from "@/lib/pos/ors";
 
 const TBL = "agenda_visao";
 
@@ -111,16 +111,30 @@ export async function PATCH(req: NextRequest) {
 
     let coordenadas: { lat: number; lng: number } | null = null;
     let enderecoUsado = row.endereco || "";
-    let tempoIda = 0, distIda = 0;
+    let tempoIda = 0, distIda = 0, tempoVolta = 0, distVolta = 0;
+
+    // Origem customizada (última localização do técnico) ou oficina
+    const origemLat = campos.origemLat as number | undefined;
+    const origemLng = campos.origemLng as number | undefined;
+    const usarOrigem = origemLat && origemLng;
 
     for (const opt of opcoes) {
       coordenadas = await geocodificar(opt.endereco + ", Brasil");
       if (coordenadas) {
         enderecoUsado = opt.endereco;
-        const rota = await rotaDaOficina(coordenadas.lat, coordenadas.lng);
-        if (rota) {
-          tempoIda = rota.tempo_min;
-          distIda = rota.distancia_km;
+        // Ida: da origem customizada ou da oficina
+        const rotaIda = usarOrigem
+          ? await calcularRota(origemLat, origemLng, coordenadas.lat, coordenadas.lng)
+          : await rotaDaOficina(coordenadas.lat, coordenadas.lng);
+        if (rotaIda) {
+          tempoIda = rotaIda.tempo_min;
+          distIda = rotaIda.distancia_km;
+        }
+        // Volta: sempre da oficina
+        const rotaVolta = await rotaDaOficina(coordenadas.lat, coordenadas.lng);
+        if (rotaVolta) {
+          tempoVolta = rotaVolta.tempo_min;
+          distVolta = rotaVolta.distancia_km;
         }
         break;
       }
@@ -132,8 +146,8 @@ export async function PATCH(req: NextRequest) {
       coordenadas,
       tempo_ida_min: tempoIda,
       distancia_ida_km: distIda,
-      tempo_volta_min: tempoIda,
-      distancia_volta_km: distIda,
+      tempo_volta_min: tempoVolta,
+      distancia_volta_km: distVolta,
       updated_at: new Date().toISOString(),
     }).eq("id", id).select().single();
 

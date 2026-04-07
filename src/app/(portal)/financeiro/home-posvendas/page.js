@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuditLog } from '@/hooks/useAuditLog'
+import { notificarAdminsClient } from '@/hooks/useNotificarAdmins'
 import { marcarMinhaAcao } from '@/components/financeiro/NotificationSystem'
 import { formatarDataBR, formatarMoeda, getRequisicoes } from '@/lib/financeiro/utils'
 import Link from 'next/link'
@@ -139,6 +140,7 @@ function HomePosVendasContent() {
     const table = getCardTable(t);
     await supabase.from(table).update({ [field]: value }).eq('id', t.id);
     auditLog({ sistema: 'financeiro', acao: 'editar', entidade: table, entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { campo: field, valor: value } });
+    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} alterou ${getCardLabel(t)}`, `Campo: ${field}`, `/financeiro/home-posvendas`)
     carregarDados();
     if(tarefaSelecionada) setTarefaSelecionada(prev => ({ ...prev, [field]: value }));
   };
@@ -154,6 +156,7 @@ function HomePosVendasContent() {
 
       await supabase.from(table).update({ [field]: linkData.publicUrl }).eq('id', t.id);
       auditLog({ sistema: 'financeiro', acao: 'upload', entidade: table, entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { campo: field, arquivo: file.name } });
+      notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} enviou arquivo em ${getCardLabel(t)}`, `Campo: ${field}`, `/financeiro/home-posvendas`)
       alert("Arquivo atualizado!");
       carregarDados();
       if(tarefaSelecionada) setTarefaSelecionada(prev => ({ ...prev, [field]: linkData.publicUrl }));
@@ -164,6 +167,7 @@ function HomePosVendasContent() {
     notificarMovimento('Chamado_NF', t, 'vencido', `${getCardLabel(t)} — Recobrança concluída`);
     await supabase.from('Chamado_NF').update({ status: 'vencido', tarefa: 'Cliente Recobrado (Aguardando Financeiro)' }).eq('id', t.id);
     auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { de: t.status, para: 'vencido', acao_desc: 'Recobrança concluída - aguardando Financeiro' } });
+    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} concluiu recobrança — ${getCardLabel(t)}`, null, `/financeiro/home-posvendas`)
     alert(`Cobranca registrada!`); setTarefaSelecionada(null); carregarDados();
   };
 
@@ -171,6 +175,7 @@ function HomePosVendasContent() {
     notificarMovimento('Chamado_NF', t, 'aguardando_vencimento', `${getCardLabel(t)} — Boleto enviado ao cliente`);
     await supabase.from('Chamado_NF').update({ status: 'aguardando_vencimento', tarefa: 'Aguardando Vencimento' }).eq('id', t.id);
     auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { de: t.status, para: 'aguardando_vencimento', acao_desc: 'Boleto enviado ao cliente' } });
+    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} enviou boleto ao cliente — ${getCardLabel(t)}`, null, `/financeiro/home-posvendas`)
     alert("Boleto enviado!"); setTarefaSelecionada(null); carregarDados();
   };
 
@@ -178,6 +183,7 @@ function HomePosVendasContent() {
     notificarMovimento('Chamado_NF', t, 'sem_boleto', `${getCardLabel(t)} — Movido para Cliente Sem Boleto`);
     await supabase.from('Chamado_NF').update({ status: 'sem_boleto', tarefa: 'Cliente Sem Boleto' }).eq('id', t.id);
     auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { de: t.status, para: 'sem_boleto', acao_desc: 'Movido para Cliente Sem Boleto' } });
+    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} moveu ${getCardLabel(t)} para Sem Boleto`, null, `/financeiro/home-posvendas`)
     carregarDados();
   };
 
@@ -185,6 +191,7 @@ function HomePosVendasContent() {
     notificarMovimento('Chamado_NF', t, 'pago', `${getCardLabel(t)} — Pagamento confirmado`);
     await supabase.from('Chamado_NF').update({ status: 'pago', tarefa: 'Pagamento Confirmado' }).eq('id', t.id);
     auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { de: t.status, para: 'pago', acao_desc: 'Pagamento confirmado' } });
+    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} confirmou pagamento — ${getCardLabel(t)}`, null, `/financeiro/home-posvendas`)
     alert("Confirmado!"); setTarefaSelecionada(null); carregarDados();
   };
 

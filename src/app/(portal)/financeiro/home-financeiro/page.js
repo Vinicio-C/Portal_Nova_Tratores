@@ -5,6 +5,7 @@ import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuditLog } from '@/hooks/useAuditLog'
+import { notificarAdminsClient } from '@/hooks/useNotificarAdmins'
 import { marcarMinhaAcao } from '@/components/financeiro/NotificationSystem'
 import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
 import { formatarDataBR, formatarMoeda, getRequisicoes } from '@/lib/financeiro/utils'
@@ -190,6 +191,7 @@ function HomeFinanceiroContent() {
     const table = getCardTable(t);
     await supabase.from(table).update({ [field]: value }).eq('id', t.id);
     auditLog({ sistema: 'financeiro', acao: 'editar', entidade: table, entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { campo: field, valor: value } });
+    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} alterou ${getCardLabel(t)}`, `Campo: ${field}`, `/financeiro/home-financeiro`)
     carregarDados();
     if(tarefaSelecionada) setTarefaSelecionada(prev => ({ ...prev, [field]: value }));
  };
@@ -217,8 +219,10 @@ function HomeFinanceiroContent() {
 
       if (updateData.status === 'enviar_cliente') {
         notificarMovimento('Chamado_NF', t, 'enviar_cliente', `${getCardLabel(t)} — Boleto anexado, enviar ao cliente`);
+        notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} anexou boleto em ${getCardLabel(t)}`, `Card movido para Enviar ao Cliente`, `/financeiro/home-financeiro`)
         alert("Boleto anexado! Card movido para Enviar ao Cliente.");
       } else {
+        notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} atualizou arquivo em ${getCardLabel(t)}`, `Campo: ${field}`, `/financeiro/home-financeiro`)
         alert("Arquivo atualizado!");
       }
       carregarDados();
@@ -242,6 +246,7 @@ function HomeFinanceiroContent() {
     }).eq('id', t.id);
 
     auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { de: t.status, para: 'enviar_cliente', acao_desc: 'Boleto gerado e enviado ao Pós-Vendas' } });
+    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} gerou boleto — ${getCardLabel(t)}`, `Enviado ao Pós-Vendas`, `/financeiro/home-financeiro`)
     alert("Tarefa enviada ao Pós-Vendas!"); setTarefaSelecionada(null); carregarDados();
   } catch (err) { alert("Erro: " + err.message); }
  };
@@ -250,6 +255,7 @@ function HomeFinanceiroContent() {
     notificarMovimento('Chamado_NF', t, 'pago', `${getCardLabel(t)} — Pagamento confirmado`);
     await supabase.from('Chamado_NF').update({ status: 'pago', tarefa: 'Pagamento Confirmado' }).eq('id', t.id);
     auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { de: t.status, para: 'pago', acao_desc: 'Pagamento confirmado' } });
+    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} confirmou pagamento — ${getCardLabel(t)}`, null, `/financeiro/home-financeiro`)
     alert("Pagamento confirmado e processo finalizado!"); setTarefaSelecionada(null); carregarDados();
  };
 
@@ -258,6 +264,7 @@ function HomeFinanceiroContent() {
     notificarMovimento(table, t, 'concluido', `${getCardLabel(t)} — Processo concluído`);
     await supabase.from(table).update({ status: 'concluido' }).eq('id', t.id);
     auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: table, entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { de: t.status, para: 'concluido', acao_desc: 'Processo concluído' } });
+    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} concluiu ${getCardLabel(t)}`, null, `/financeiro/home-financeiro`)
     alert("Processo concluído!"); setTarefaSelecionada(null); carregarDados();
  };
 
@@ -272,6 +279,7 @@ function HomeFinanceiroContent() {
         recombrancas_qtd: newVal
     }).eq('id', t.id);
     auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { de: t.status, para: 'vencido', acao_desc: `Recobrança #${newVal} solicitada ao Pós-Vendas` } });
+    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} solicitou recobrança #${newVal}`, getCardLabel(t), `/financeiro/home-financeiro`)
     alert("Recobrança solicitada ao Pós-Vendas!"); setTarefaSelecionada(null); carregarDados();
  };
 
@@ -279,6 +287,7 @@ function HomeFinanceiroContent() {
     notificarMovimento('Chamado_NF', t, 'vencido');
     await supabase.from('Chamado_NF').update({ status: 'vencido' }).eq('id', t.id);
     auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { de: t.status, para: 'vencido' } });
+    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} moveu para Vencido — ${getCardLabel(t)}`, null, `/financeiro/home-financeiro`)
     alert("Card movido para Vencido!"); setTarefaSelecionada(null); carregarDados();
  };
 

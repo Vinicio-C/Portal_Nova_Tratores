@@ -4,10 +4,13 @@ import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
 import { useAuditLog } from '@/hooks/useAuditLog'
+import { useAuth } from '@/hooks/useAuth'
+import { notificarAdminsClient } from '@/hooks/useNotificarAdmins'
 import { User, FileText, Building, CheckCircle, Tag } from 'lucide-react'
 
 export default function NovoChamadoRH() {
   const { log: auditLog } = useAuditLog()
+  const { userProfile } = useAuth()
   const [user, setUser] = useState(null)
   const [form, setForm] = useState({ funcionario: '', titulo: '', descricao: '', setor: '' })
   const [enviando, setEnviando] = useState(false)
@@ -35,6 +38,7 @@ export default function NovoChamadoRH() {
       }])
       if (error) throw error
       auditLog({ sistema: 'financeiro', acao: 'criar', entidade: 'finan_rh', entidade_label: `RH - ${form.funcionario} - ${form.titulo}`, detalhes: { funcionario: form.funcionario, titulo: form.titulo, setor: form.setor } })
+      notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} criou chamado RH`, `Funcionário: ${form.funcionario} — ${form.titulo}`, '/financeiro')
       alert("Chamado de RH criado com sucesso!")
       router.push('/financeiro')
     } catch (err) {

@@ -19,9 +19,13 @@ export default function CardCapaReq({ req, onUpdate, onPrint, dadosCompartilhado
   const subtituloContextual = useMemo(() => {
     const tipo = (req.tipo || req.ReqTipo || '').toLowerCase();
     const veiculos = dadosCompartilhados?.veiculos || [];
-    if (['frota-veiculos', 'veicular abastecimento', 'veicular manutenção'].includes(tipo) && req.veiculo) {
+    if (['veicular abastecimento', 'veicular manutenção'].includes(tipo) && req.veiculo) {
       const v = veiculos.find((x: any) => String(x.IdPlaca) === String(req.veiculo));
-      return v?.NumPlaca || null;
+      const litros = req.litros_combustivel ? ` · ${req.litros_combustivel}L` : '';
+      return v ? (v.NumPlaca + litros) : null;
+    }
+    if (['trator abastecimento', 'quadri abastecimento'].includes(tipo) && req.litros_combustivel) {
+      return `${req.litros_combustivel}L`;
     }
     if (tipo === 'ferramenta') {
       return req.quem_ferramenta || req.ferramenta_quem || null;
@@ -114,6 +118,14 @@ export default function CardCapaReq({ req, onUpdate, onPrint, dadosCompartilhado
                 <Tag size={12} className="text-zinc-400" /> Destinação:
               </span>
               <span className="text-xs font-medium text-zinc-600 truncate max-w-[180px]">{req.quem_ferramenta || req.ferramenta_quem || '---'}</span>
+            </div>
+          )}
+          {['Veicular Abastecimento', 'Trator Abastecimento', 'Quadri Abastecimento'].includes(req.tipo) && req.litros_combustivel && (
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-normal uppercase tracking-widest flex items-center gap-2">
+                <Tag size={12} className="text-amber-500" /> Litros:
+              </span>
+              <span className="text-xs font-bold text-amber-600">{req.litros_combustivel}L</span>
             </div>
           )}
         </div>

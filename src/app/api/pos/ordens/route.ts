@@ -6,22 +6,43 @@ import { sincronizarStatusPPV } from "@/lib/pos/sync-ppv";
 import { logAndNotify } from "@/lib/server/audit-notify";
 import type { KanbanCard } from "@/lib/pos/types";
 
-/* ── Verifica se houve mudança manual recente (últimas 6h) para a OS ── */
-async function teveMudancaManualRecente(idOrdem: string): Promise<boolean> {
-  const limite = new Date(Date.now() - 6 * 60 * 60 * 1000); // 6 horas atrás
+/*
+ * Auto-move: verifica se o último log da OS é uma ação manual que
+ * REVERTEU essa mesma transição automática. Se sim, não move de novo.
+ *
+ * Lógica: o auto-move registra log com acao "Auto-move: ...".
+ * Se depois disso o usuário mudou manualmente a fase (log sem "Auto-move"),
+ * significa que ele quis reverter. Nesse caso, só movemos de novo se as
+ * datas da OS mudaram desde o último auto-move (ou seja, ele atualizou
+ * a previsão e quer que funcione com a nova data).
+ */
+async function autoMoveJaFoiRevertido(idOrdem: string, autoMoveAcao: string): Promise<boolean> {
+  // Buscar os 2 últimos logs dessa OS (o mais recente primeiro)
   const { data: logs } = await supabase
     .from(TBL_LOGS_PPO)
-    .select("id, acao, UsuEmail")
+    .select("acao, UsuEmail")
     .eq("Id_ppo", idOrdem)
-    .not("UsuEmail", "eq", "Sistema")
     .order("id", { ascending: false })
-    .limit(1);
+    .limit(5);
 
   if (!logs || logs.length === 0) return false;
 
-  // Se o último log NÃO é "Auto-move", significa que um humano mexeu depois
+  // Se o último log é manual (não auto-move), verifica se houve um auto-move
+  // com a mesma ação antes. Se sim, o usuário reverteu → não mover de novo.
   const ultimoLog = logs[0];
-  return !ultimoLog.acao.startsWith("Auto-move");
+  if (ultimoLog.acao.startsWith("Auto-move")) return false; // último foi auto-move, não foi revertido
+
+  // Último log é manual. Verificar se algum dos logs anteriores é o mesmo auto-move
+  for (let i = 1; i < logs.length; i++) {
+    if (logs[i].acao === autoMoveAcao) {
+      // O auto-move já rodou antes E o usuário mudou manualmente depois → revertido
+      return true;
+    }
+    // Se encontrou outro log manual antes do auto-move, para de procurar
+    if (!logs[i].acao.startsWith("Auto-move")) break;
+  }
+
+  return false;
 }
 
 /* ── Auto-move: verifica datas de previsão e move ordens automaticamente ── */
@@ -40,7 +61,7 @@ async function autoMoveByDate() {
     .in("Status", ["Orçamento", "Orçamento enviado para o cliente e aguardando"]);
 
   for (const os of paraExecucao || []) {
-    if (await teveMudancaManualRecente(os.Id_Ordem)) continue;
+    if (await autoMoveJaFoiRevertido(os.Id_Ordem, "Auto-move: Previsão de execução atingida")) continue;
     await supabase.from(TBL_OS).update({ Status: "Execução" }).eq("Id_Ordem", os.Id_Ordem);
     await registrarLog(os.Id_Ordem, "Auto-move: Previsão de execução atingida", "Execução", os.Status);
     await sincronizarStatusPPV(os.Id_Ordem, "Execução");
@@ -58,7 +79,7 @@ async function autoMoveByDate() {
     .in("Status", ["Execução"]);
 
   for (const os of execAtrasadas || []) {
-    if (await teveMudancaManualRecente(os.Id_Ordem)) continue;
+    if (await autoMoveJaFoiRevertido(os.Id_Ordem, "Auto-move: período de execução encerrado sem conclusão")) continue;
     await supabase.from(TBL_OS).update({ Status: "Aguardando ordem Técnico" }).eq("Id_Ordem", os.Id_Ordem);
     await registrarLog(os.Id_Ordem, "Auto-move: período de execução encerrado sem conclusão", "Aguardando ordem Técnico", os.Status);
     await sincronizarStatusPPV(os.Id_Ordem, "Aguardando ordem Técnico");
@@ -80,7 +101,7 @@ async function autoMoveByDate() {
     .in("Status", ["Executada aguardando comercial"]);
 
   for (const os of paraFaturamento || []) {
-    if (await teveMudancaManualRecente(os.Id_Ordem)) continue;
+    if (await autoMoveJaFoiRevertido(os.Id_Ordem, "Auto-move: Previsão de faturamento atingida")) continue;
     await supabase.from(TBL_OS).update({ Status: "Executada aguardando cliente" }).eq("Id_Ordem", os.Id_Ordem);
     await registrarLog(os.Id_Ordem, "Auto-move: Previsão de faturamento atingida", "Executada aguardando cliente", os.Status);
     await sincronizarStatusPPV(os.Id_Ordem, "Executada aguardando cliente");

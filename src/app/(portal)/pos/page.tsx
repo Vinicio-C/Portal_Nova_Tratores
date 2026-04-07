@@ -148,10 +148,14 @@ function PosPageInner() {
     }
   };
 
-  const handleGenerateReport = async () => {
+  const handleGenerateReport = async (filtros: { tecnico: string; tipo: string }) => {
     setLoading(true);
     try {
-      const res = await fetch("/api/pos/relatorio");
+      const params = new URLSearchParams();
+      if (filtros.tecnico !== "todos") params.set("tecnico", filtros.tecnico);
+      if (filtros.tipo !== "todas") params.set("tipo", filtros.tipo);
+      const qs = params.toString();
+      const res = await fetch(`/api/pos/relatorio${qs ? `?${qs}` : ""}`);
       const html = await res.text();
       const w = window.open("", "_blank");
       if (w) {
@@ -176,6 +180,7 @@ function PosPageInner() {
         onGenerateReport={handleGenerateReport}
         onSync={handleSync}
         onLembretes={() => setLembretesVisible(true)}
+        tecnicos={tecnicos}
       />
       <PhaseAccordion
         orders={orders}

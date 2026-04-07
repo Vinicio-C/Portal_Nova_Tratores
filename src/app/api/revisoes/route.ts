@@ -102,6 +102,23 @@ CLIENTE: ${clienteSan}</p>
         .catch(() => null),
     ]);
 
+    // 3) Salvar registro no banco de dados
+    const nomeSender = formData.get('nome') as string | null;
+    await supabase.from('revisao_emails').insert({
+      chassis: chassisSan,
+      chassis_final: chassisFinal,
+      horas: horasSan,
+      modelo: modeloSan,
+      cliente: clienteSan || null,
+      assunto: subject,
+      destinatarios,
+      corpo: html,
+      pdf_url: uploadResult || null,
+      enviado_por: nomeSender?.replace(/[<>&"']/g, '') || null,
+    }).then(({ error }) => {
+      if (error) console.error('Erro ao salvar revisao_emails:', error.message);
+    });
+
     return NextResponse.json({ id: info.messageId, pdfUrl: uploadResult });
   } catch (error: any) {
     console.error('Erro ao enviar email:', error);

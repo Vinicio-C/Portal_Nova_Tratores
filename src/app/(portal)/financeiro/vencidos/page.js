@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { formatarDataBR, formatarMoeda, calcTempo } from '@/lib/financeiro/utils'
+import { notificarAdminsClient } from '@/hooks/useNotificarAdmins'
 import { marcarMinhaAcao } from '@/components/financeiro/NotificationSystem'
 import {
   AlertTriangle, Calendar, CreditCard, Clock, Search, X,
@@ -79,6 +80,7 @@ export default function VencidosPage() {
       recombrancas_qtd: newVal,
       status_changed_at: new Date().toISOString(),
     }).eq('id', t.id)
+    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} solicitou recobrança #${newVal}`, `NF #${t.id} — ${t.nom_cliente || ''}`, `/financeiro/vencidos`)
     alert('Recobrança enviada ao Pós-Vendas!')
     setSelecionado(null)
     carregarDados()
@@ -91,6 +93,7 @@ export default function VencidosPage() {
       tarefa: 'Pagamento Confirmado',
       status_changed_at: new Date().toISOString(),
     }).eq('id', t.id)
+    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} marcou NF #${t.id} como pago`, `Cliente: ${t.nom_cliente || ''}`, `/financeiro/vencidos`)
     alert('Card movido para Pago!')
     setSelecionado(null)
     carregarDados()

@@ -21,7 +21,7 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
     data: new Date().toISOString().split('T')[0],
     empresa: '', endereco_empr: '', veiculo: '', hodometro: '',
     cliente: '', ordem_servico: '', fornecedor: '', obs: '',
-    valor_cobrado_cliente: '', quem_ferramenta: '', Chassis_Modelo: '', status: 'pedido'
+    valor_cobrado_cliente: '', quem_ferramenta: '', Chassis_Modelo: '', litros_combustivel: '', status: 'pedido'
   });
 
   useEffect(() => {
@@ -48,8 +48,7 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
   }, []);
 
   useEffect(() => {
-    const config = formData.tipo === 'Frota-Veiculos' ? EMPRESAS.CASTRO : EMPRESAS.NOVA;
-    setFormData(p => ({ ...p, empresa: config.nome, endereco_empr: config.endereco }));
+    setFormData(p => ({ ...p, empresa: EMPRESAS.NOVA.nome, endereco_empr: EMPRESAS.NOVA.endereco }));
   }, [formData.tipo]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -87,7 +86,7 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
               <label className={labelStyle}>Tipo</label>
               <select required onChange={e => setFormData({...formData, tipo: e.target.value})} className={inputStyle}>
                 <option value="" className="bg-white">Selecione...</option>
-                {["Peças", "Alimentação", "Frota-Veiculos", "Serviço de Terceiros", "Almoxarifado", "Ferramenta", "Insumo Infra", "Veicular Abastecimento", "Veicular Manutenção", "Trator Abastecimento", "Quadri Abastecimento"].map(t => <option key={t} value={t} className="bg-white">{t}</option>)}
+                {["Peças", "Alimentação", "Serviço de Terceiros", "Almoxarifado", "Ferramenta", "Insumo Infra", "Veicular Abastecimento", "Veicular Manutenção", "Trator Abastecimento", "Quadri Abastecimento"].map(t => <option key={t} value={t} className="bg-white">{t}</option>)}
               </select>
             </div>
             <div>
@@ -124,7 +123,7 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
           )}
 
           {/* VEICULAR: placa + km */}
-          {['Frota-Veiculos', 'Veicular Abastecimento', 'Veicular Manutenção'].includes(formData.tipo) && (
+          {['Veicular Abastecimento', 'Veicular Manutenção'].includes(formData.tipo) && (
             <div className="p-6 bg-red-50 rounded-2xl border border-red-200">
               <p className="text-xs font-black text-red-600 uppercase tracking-widest mb-4">Informacoes do Veiculo</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -138,6 +137,25 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
                 <div>
                   <label className={labelStyle}>Hodometro / Horimetro</label>
                   <input placeholder="Ex: 12.500 km" value={formData.hodometro} onChange={e => setFormData({...formData, hodometro: e.target.value})} className={`${inputStyle} !border-red-300`} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ABASTECIMENTO: litros de combustível */}
+          {['Veicular Abastecimento', 'Trator Abastecimento', 'Quadri Abastecimento'].includes(formData.tipo) && (
+            <div className="p-6 bg-amber-50 rounded-2xl border border-amber-200">
+              <p className="text-xs font-black text-amber-600 uppercase tracking-widest mb-4">Abastecimento</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {!['Trator Abastecimento', 'Quadri Abastecimento'].includes(formData.tipo) ? null : (
+                  <div>
+                    <label className={labelStyle}>Chassis / Modelo</label>
+                    <input placeholder="Ex: VALTRA BM110 - CHASSIS 123456" value={formData.Chassis_Modelo} onChange={e => setFormData({...formData, Chassis_Modelo: e.target.value.toUpperCase()})} className={`${inputStyle} !border-amber-300`} />
+                  </div>
+                )}
+                <div>
+                  <label className={labelStyle}>Litros de Combustível</label>
+                  <input required placeholder="Ex: 150" value={formData.litros_combustivel} onChange={e => setFormData({...formData, litros_combustivel: e.target.value})} className={`${inputStyle} !border-amber-300`} />
                 </div>
               </div>
             </div>

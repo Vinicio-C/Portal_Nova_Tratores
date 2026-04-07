@@ -113,24 +113,16 @@ function DashboardAgrupadoInner() {
     loadDestinatariosSupabase().then(setDestinatarios);
   }, []);
 
-  const fetchEmails = async (forceRefresh = false) => {
+  const fetchEmails = async () => {
     setLoadingEmails(true);
     try {
-      const res = await fetch(`/api/revisoes/emails${forceRefresh ? "?refresh=1" : ""}`);
+      const res = await fetch("/api/revisoes/emails");
       if (!res.ok) throw new Error("Erro ao buscar emails");
       const data = await res.json();
-      setEmails(prev => {
-        const serverKeys = new Set(
-          data.emails.map((e: EmailRevisao) => `${e.chassisFinal}-${e.horas}`)
-        );
-        const otimistasRestantes = prev.filter(
-          e => e.uid > 1_000_000_000 && !serverKeys.has(`${e.chassisFinal}-${e.horas}`)
-        );
-        return [...data.emails, ...otimistasRestantes];
-      });
+      setEmails(data.emails || []);
       setEmailsCarregados(true);
     } catch {
-      console.error("Falha ao buscar emails do Gmail.");
+      console.error("Falha ao buscar emails.");
     } finally {
       setLoadingEmails(false);
     }
@@ -143,7 +135,7 @@ function DashboardAgrupadoInner() {
   }, []);
   useRefreshOnFocus(refreshRevisoes);
 
-  // Carregar tratores do Supabase (rápido) e emails do Gmail (lento) separadamente
+  // Carregar tratores e emails do Supabase
   useEffect(() => {
     const fetchTratores = async () => {
       setLoading(true);
@@ -399,21 +391,8 @@ function DashboardAgrupadoInner() {
     if (fileInputRef.current) fileInputRef.current.value = "";
     setHorimetroEnvio("");
 
-    const horasEnvio = revisaoEnvio.replace("h", "");
-    const chassisFinal = selecionado.Chassis.slice(-4);
-    const emailOtimista: EmailRevisao = {
-      subject: `CHEQUE DE REVISÃO - ${horasEnvio} HORAS - ${selecionado.Modelo} ${chassisFinal}`,
-      date: new Date().toISOString(),
-      uid: Date.now(),
-      horas: horasEnvio,
-      modelo: selecionado.Modelo,
-      chassisFinal,
-      attachments: [],
-      body: "",
-    };
-    setEmails(prev => [...prev, emailOtimista]);
-
-    setTimeout(() => fetchEmails(true), 5000);
+    // Recarregar emails do banco (agora é rápido, sem IMAP)
+    setTimeout(() => fetchEmails(), 1000);
     setEnviando(false);
   };
 
@@ -797,50 +776,22 @@ function DashboardAgrupadoInner() {
                                           )}
                                         </div>
                                       </div>
-                                      {/* PDF salvo no banco — prioridade */}
-                                      {pdfSalvo && (
-                                        <div>
-                                          <p className="text-[10px] text-zinc-400 uppercase tracking-wider mb-2">Documento</p>
-                                          <button
-                                            onClick={(e) => { e.stopPropagation(); setPdfPreviewUrl(pdfSalvo); }}
-                                            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-red-50 hover:bg-red-100 border border-red-200 transition-colors text-xs text-red-700 font-medium"
-                                          >
-                                            <i className="fas fa-file-pdf" /> Ver PDF
-                                          </button>
-                                        </div>
-                                      )}
-                                      {/* Anexos do email — fallback se não tem PDF no banco */}
-                                      {!pdfSalvo && email && email.attachments.length > 0 && (
-                                        <div>
-                                          <p className="text-[10px] text-zinc-400 uppercase tracking-wider mb-2">Anexos do email</p>
-                                          <div className="flex flex-wrap gap-2">
-                                            {email.attachments.map((att, i) => {
-                                              const attUrl = `/api/revisoes/emails/attachment?uid=${email.uid}&part=${encodeURIComponent(att.part)}&filename=${encodeURIComponent(att.filename)}&type=${encodeURIComponent(att.contentType)}`;
-                                              const isPdf = att.contentType.includes("pdf");
-                                              return (
-                                                <button
-                                                  key={i}
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    if (isPdf) {
-                                                      setPdfPreviewUrl(attUrl);
-                                                    } else {
-                                                      window.open(attUrl, "_blank");
-                                                    }
-                                                  }}
-                                                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-zinc-100 hover:bg-zinc-200 border border-zinc-200 transition-colors text-xs text-zinc-300"
-                                                >
-                                                  <span className="text-[10px] text-zinc-400 font-medium">
-                                                    {isPdf ? "PDF" : att.contentType.includes("image") ? "IMG" : "ARQ"}
-                                                  </span>
-                                                  <span className="truncate max-w-[150px]">{att.filename}</span>
-                                                  <span className="text-zinc-400">{formatFileSize(att.size)}</span>
-                                                </button>
-                                              );
-                                            })}
+                                      {/* PDF — prioridade: banco tratores > email revisao_emails */}
+                                      {(() => {
+                                        const pdfUrl = pdfSalvo || (email?.attachments?.find(a => a.contentType.includes("pdf"))?.part);
+                                        if (!pdfUrl) return null;
+                                        return (
+                                          <div>
+                                            <p className="text-[10px] text-zinc-400 uppercase tracking-wider mb-2">Documento</p>
+                                            <button
+                                              onClick={(e) => { e.stopPropagation(); setPdfPreviewUrl(pdfUrl); }}
+                                              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-red-50 hover:bg-red-100 border border-red-200 transition-colors text-xs text-red-700 font-medium"
+                                            >
+                                              <i className="fas fa-file-pdf" /> Ver PDF
+                                            </button>
                                           </div>
-                                        </div>
-                                      )}
+                                        );
+                                      })()}
                                     </div>
                                   ) : isProxima ? (
                                     <div className="flex items-center gap-3">
@@ -936,7 +887,7 @@ function DashboardAgrupadoInner() {
                                 <div>
                                   <p className="text-xs text-zinc-400 uppercase tracking-wider mb-2">Corpo do email</p>
                                   <div className="bg-zinc-50 rounded-lg p-4 border border-zinc-100">
-                                    <pre className="text-base text-zinc-500 whitespace-pre-wrap font-sans leading-relaxed">{email.body}</pre>
+                                    <div className="text-base text-zinc-500 leading-relaxed" dangerouslySetInnerHTML={{ __html: email.body }} />
                                   </div>
                                 </div>
                               )}
@@ -945,7 +896,7 @@ function DashboardAgrupadoInner() {
                                   <p className="text-[10px] text-zinc-400 uppercase tracking-wider mb-2">Anexos ({email.attachments.length})</p>
                                   <div className="flex flex-wrap gap-2">
                                     {email.attachments.map((att, i) => {
-                                      const attUrl = `/api/revisoes/emails/attachment?uid=${email.uid}&part=${encodeURIComponent(att.part)}&filename=${encodeURIComponent(att.filename)}&type=${encodeURIComponent(att.contentType)}`;
+                                      const attUrl = att.part; // URL direta do Supabase Storage
                                       const isPdf = att.contentType.includes("pdf");
                                       return (
                                         <button

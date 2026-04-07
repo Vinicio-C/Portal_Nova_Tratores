@@ -498,18 +498,11 @@ export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean
 
     console.log(`[Omie] ✓ ${idOrdem} → OS nº ${resposta.cNumOS} (ID: ${resposta.nCodOS})`);
 
-    // Se existem PPVs vinculados, cria Pedido de Venda e fecha PPVs
-    const ppvIds = String(os.ID_PPV || "").split(",").map((s: string) => s.trim()).filter(Boolean);
-    let pedidoVendaInfo: { numero?: string; erro?: string } = {};
-    if (ppvIds.length > 0) {
-      pedidoVendaInfo = await criarPedidoVendaNoOmie(idOrdem, ppvIds, nCodCli, nCodProj, nCodVend);
-      // Fecha PPVs vinculados
-      await fecharPPVsVinculados(ppvIds, idOrdem);
-    }
+    // PPV vinculado NÃO é mais enviado junto com a OS.
+    // O envio do pedido de venda (peças) é feito separadamente pelo botão no PPV.
 
     return {
       sucesso: true, nCodOS: resposta.nCodOS, cNumOS: resposta.cNumOS,
-      pedidoVenda: pedidoVendaInfo.numero, pedidoVendaErro: pedidoVendaInfo.erro,
     };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

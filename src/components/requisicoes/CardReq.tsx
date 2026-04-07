@@ -13,7 +13,7 @@ import {
 
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxyIatVqhjdeBeo4PYNWr992vCsPpvEEjOxabWB7mz5JRJ7BroxnvR8CRIcXIgTfLSm/exec';
 const DEPARTAMENTOS = ["Trator-Loja", "Trator-Cliente", "Oficina", "Comercial"];
-const TIPOS_REQ = ["Peças", "Alimentação", "Ferramenta", "Serviço de Terceiros", "Almoxarifado", "Frota-Veiculos", "Insumo Infra", "Veicular Abastecimento", "Veicular Manutenção", "Trator Abastecimento", "Quadri Abastecimento"];
+const TIPOS_REQ = ["Peças", "Alimentação", "Ferramenta", "Serviço de Terceiros", "Almoxarifado", "Insumo Infra", "Veicular Abastecimento", "Veicular Manutenção", "Trator Abastecimento", "Quadri Abastecimento"];
 
 type Aba = 'dados' | 'financeiro' | 'anexos';
 
@@ -485,10 +485,10 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                     </div>
                   )}
 
-                  {/* CAMPOS CONDICIONAIS - Frota */}
-                  {['Frota-Veiculos', 'Veicular Abastecimento', 'Veicular Manutenção'].includes(localData.tipo) && (
+                  {/* CAMPOS CONDICIONAIS - Veicular */}
+                  {['Veicular Abastecimento', 'Veicular Manutenção'].includes(localData.tipo) && (
                     <div className="border border-red-200 bg-red-500/5 rounded-xl p-4">
-                      <span className="text-[11px] font-bold text-red-600 uppercase tracking-wider block mb-3">Frota</span>
+                      <span className="text-[11px] font-bold text-red-600 uppercase tracking-wider block mb-3">Veículo</span>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className={labelBase}><Car size={11}/> Veículo / Placa</label>
@@ -501,6 +501,17 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                           <label className={labelBase}><Gauge size={11}/> Hodômetro</label>
                           <input value={localData.hodometro || ''} onChange={e => setField('hodometro', e.target.value)} onBlur={e => persist('hodometro', e.target.value)} className={inputBase} />
                         </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* CAMPOS CONDICIONAIS - Abastecimento (litros) */}
+                  {['Veicular Abastecimento', 'Trator Abastecimento', 'Quadri Abastecimento'].includes(localData.tipo) && (
+                    <div className="border border-amber-200 bg-amber-500/5 rounded-xl p-4">
+                      <span className="text-[11px] font-bold text-amber-600 uppercase tracking-wider block mb-3">Abastecimento</span>
+                      <div>
+                        <label className={labelBase}><Gauge size={11}/> Litros de Combustível</label>
+                        <input value={localData.litros_combustivel || ''} onChange={e => setField('litros_combustivel', e.target.value)} onBlur={e => persist('litros_combustivel', e.target.value)} className={inputBase} placeholder="Ex: 150" />
                       </div>
                     </div>
                   )}
