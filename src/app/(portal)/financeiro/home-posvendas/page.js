@@ -326,8 +326,11 @@ function HomePosVendasContent() {
                   <div style={{ background: '#ffffff', padding: '25px', borderBottom: '1px solid #e5e7eb' }}>
                     <div style={{fontSize: '10px', color: '#6b7280', letterSpacing:'1px', marginBottom: '8px', textTransform:'uppercase'}}>{t.metodo || 'Despesa'}</div>
                     <span style={{fontSize:'18px', color:'#1e293b', display:'block', lineHeight: '1.2'}}>{t.fornecedor?.toUpperCase()}</span>
-                    {getRequisicoes(t).filter(r => r.numero).length > 0 && (
+                    {(getRequisicoes(t).filter(r => r.numero).length > 0 || t.anexo_requisicao) && (
                       <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                        {t.anexo_requisicao && t.anexo_requisicao.split(',').filter(u => u.trim()).map((_, i) => (
+                          <span key={`old-${i}`} style={{ background: '#fef3c7', color: '#92400e', fontSize: '10px', fontWeight: '600', padding: '4px 8px', border: '1px solid #fcd34d', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}><Paperclip size={10}/> Req {i + 1}</span>
+                        ))}
                         {getRequisicoes(t).filter(r => r.numero).map((req, i) => (
                           <span key={i} style={{ background: '#fef2f2', color: '#dc2626', fontSize: '10px', fontWeight: '600', padding: '4px 8px', border: '1px solid #fca5a5', borderRadius: '4px' }}>#{req.numero}</span>
                         ))}
@@ -450,6 +453,16 @@ function HomePosVendasContent() {
                         <label style={labelMStyle}>REQUISICOES</label>
                         <button onClick={() => handleAddRequisicao(tarefaSelecionada)} style={{ background:'#ffffff', color:'#6b7280', border:'1px solid #e5e7eb', padding:'8px 18px', borderRadius:'12px', cursor:'pointer', fontSize:'12px', fontWeight:'600', letterSpacing:'1px' }}>+ ADICIONAR</button>
                       </div>
+                      {/* Anexos do formato antigo (anexo_requisicao) — criados pelo formulário */}
+                      {tarefaSelecionada.anexo_requisicao && tarefaSelecionada.anexo_requisicao.split(',').filter(u => u.trim()).map((url, i) => (
+                        <div key={`old-${i}`} style={{ display:'grid', gridTemplateColumns:'180px 1fr', gap:'20px', alignItems:'center', background:'#ffffff', padding:'18px', borderBottom:'1px solid #e5e7eb', marginBottom:'4px', borderRadius:'14px' }}>
+                          <div>
+                            <label style={{ ...labelMStyle, fontSize:'11px', display:'block', marginBottom:'6px' }}>REQUISIÇÃO {i + 1}</label>
+                          </div>
+                          <AttachmentTag label={`ANEXO REQUISIÇÃO ${i + 1}`} fileUrl={url.trim()} disabled />
+                        </div>
+                      ))}
+                      {/* Anexos do formato novo (requisicoes_json) */}
                       {getRequisicoes(tarefaSelecionada).map((req, i) => (
                         <div key={i} style={{ display:'grid', gridTemplateColumns:'180px 1fr auto', gap:'20px', alignItems:'center', background:'#ffffff', padding:'18px', borderBottom:'1px solid #e5e7eb', marginBottom:'4px', borderRadius:'14px' }}>
                           <div>
@@ -464,7 +477,7 @@ function HomePosVendasContent() {
                           <button onClick={() => handleRemoveRequisicao(tarefaSelecionada, i)} style={{ background:'transparent', border:'none', cursor:'pointer', color:'#dc2626', padding:'8px' }} title="Remover"><Trash2 size={18}/></button>
                         </div>
                       ))}
-                      {getRequisicoes(tarefaSelecionada).length === 0 && (
+                      {!tarefaSelecionada.anexo_requisicao && getRequisicoes(tarefaSelecionada).length === 0 && (
                         <div style={{ color:'#9ca3af', fontSize:'13px', textAlign:'center', padding:'20px' }}>Nenhuma requisicao adicionada.</div>
                       )}
                     </div>
