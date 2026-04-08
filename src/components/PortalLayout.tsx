@@ -13,6 +13,8 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import ChatPanel from './chat/ChatPanel'
+import LembretesPanel from './lembretes/LembretesPanel'
+import LembreteAlerta from './lembretes/LembreteAlerta'
 
 interface NavItem {
   id: string
@@ -130,6 +132,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const router = useRouter()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
+  const [lembretesOpen, setLembretesOpen] = useState(false)
   const [bellOpen, setBellOpen] = useState(false)
   const [toasts, setToasts] = useState<{ id: string; chatId?: string; titulo: string; avatar: string | null; preview: string; tipo: string; link?: string; timestamp: number }[]>([])
   const lastChatNotifIdRef = useRef<string | null>(null)
@@ -379,6 +382,24 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                 {chatData.totalNaoLidas > 99 ? '99+' : chatData.totalNaoLidas}
               </span>
             )}
+          </button>
+
+          {/* Lembretes button */}
+          <button
+            onClick={() => setLembretesOpen(true)}
+            style={{
+              position: 'relative',
+              background: '#fff', border: '1px solid #f0f0f0',
+              color: '#737373', cursor: 'pointer', padding: '10px',
+              borderRadius: '12px', transition: 'all 0.2s',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#fecaca'; e.currentTarget.style.color = '#dc2626' }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#f0f0f0'; e.currentTarget.style.color = '#737373' }}
+            title="Lembretes"
+          >
+            <Bell size={20} />
           </button>
 
           {/* ===== SINO / CENTRAL DE NOTIFICAÇÕES ===== */}
@@ -747,6 +768,17 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         userProfile={userProfile}
         isAdmin={isAdmin}
       />
+
+      {userProfile?.id && (
+        <LembretesPanel
+          open={lembretesOpen}
+          onClose={() => setLembretesOpen(false)}
+          userId={userProfile.id}
+          userName={userProfile.nome || ''}
+        />
+      )}
+
+      {userProfile?.id && <LembreteAlerta userId={userProfile.id} />}
 
       {/* ===== TOASTS ===== */}
       <div style={{

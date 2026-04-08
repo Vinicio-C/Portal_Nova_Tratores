@@ -307,16 +307,34 @@ export default function DashboardPage() {
               Acesse seus sistemas e acompanhe as atividades
             </p>
           </div>
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: '8px',
-            padding: '10px 18px', borderRadius: '12px',
-            background: '#ffffff', border: '1px solid #f0f0f0',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
-          }}>
-            <Clock size={16} color="#a3a3a3" />
-            <span style={{ fontSize: '14px', color: '#737373', fontWeight: '500', fontVariantNumeric: 'tabular-nums' }}>
-              {currentTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-            </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <button
+              onClick={() => setShowSync(true)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '6px',
+                padding: '10px 16px', borderRadius: '12px',
+                background: '#ffffff', border: '1px solid #f0f0f0',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                cursor: 'pointer', color: '#a3a3a3', fontSize: '13px', fontWeight: '500',
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = '#fecaca'; e.currentTarget.style.color = '#dc2626' }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = '#f0f0f0'; e.currentTarget.style.color = '#a3a3a3' }}
+            >
+              <RefreshCw size={15} />
+              Sync
+            </button>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '8px',
+              padding: '10px 18px', borderRadius: '12px',
+              background: '#ffffff', border: '1px solid #f0f0f0',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+            }}>
+              <Clock size={16} color="#a3a3a3" />
+              <span style={{ fontSize: '14px', color: '#737373', fontWeight: '500', fontVariantNumeric: 'tabular-nums' }}>
+                {currentTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              </span>
+            </div>
           </div>
         </div>
       </div>

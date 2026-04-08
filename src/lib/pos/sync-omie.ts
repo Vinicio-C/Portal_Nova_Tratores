@@ -66,69 +66,69 @@ interface OmieClienteResponse {
 }
 
 export async function syncClientes(): Promise<{ total: number; novos: number; atualizados: number }> {
-  let pagina = 1;
-  let totalPaginas = 1;
   let total = 0;
   let novos = 0;
   let atualizados = 0;
 
-  while (pagina <= totalPaginas) {
-    const res = await omieCall<OmieClienteResponse>(
-      "/geral/clientes/",
-      "ListarClientes",
-      { pagina, registros_por_pagina: 500, apenas_importado_api: "N" }
-    );
+  for (const acc of OMIE_ACCOUNTS) {
+    let pagina = 1;
+    let totalPaginas = 1;
 
-    totalPaginas = res.total_de_paginas;
+    while (pagina <= totalPaginas) {
+      const res = await omieCall<OmieClienteResponse>(
+        "/geral/clientes/",
+        "ListarClientes",
+        { pagina, registros_por_pagina: 500, apenas_importado_api: "N" },
+        acc
+      );
 
-    const registros = (res.clientes_cadastro || []).map((c) => {
-      const endereco = [c.endereco, c.endereco_numero].filter(Boolean).join(", ");
-      return {
-        id_omie: String(c.codigo_cliente_omie),
-        id_cliente: c.codigo_cliente_integracao || String(c.codigo_cliente_omie),
-        cnpj_cpf: c.cnpj_cpf || "",
-        razao_social: c.razao_social || "",
-        nome_fantasia: c.nome_fantasia || "",
-        email: c.email || "",
-        telefone: c.telefone1_numero || "",
-        endereco,
-        cidade: c.cidade || "",
-        estado: c.estado || "",
-        cep: c.cep || "",
-      };
-    });
+      totalPaginas = res.total_de_paginas;
 
-    if (registros.length > 0) {
-      // Busca existentes de uma vez
-      const ids = registros.map((r) => r.id_omie);
-      const { data: existentes } = await supabase
-        .from(TBL_CLIENTES)
-        .select("id_omie")
-        .in("id_omie", ids);
-      const existentesSet = new Set((existentes || []).map((e) => e.id_omie));
+      const registros = (res.clientes_cadastro || []).map((c) => {
+        const endereco = [c.endereco, c.endereco_numero].filter(Boolean).join(", ");
+        return {
+          id_omie: String(c.codigo_cliente_omie),
+          id_cliente: c.codigo_cliente_integracao || String(c.codigo_cliente_omie),
+          cnpj_cpf: c.cnpj_cpf || "",
+          razao_social: c.razao_social || "",
+          nome_fantasia: c.nome_fantasia || "",
+          email: c.email || "",
+          telefone: c.telefone1_numero || "",
+          endereco,
+          cidade: c.cidade || "",
+          estado: c.estado || "",
+          cep: c.cep || "",
+        };
+      });
 
-      const paraInserir = registros.filter((r) => !existentesSet.has(r.id_omie));
-      const paraAtualizar = registros.filter((r) => existentesSet.has(r.id_omie));
+      if (registros.length > 0) {
+        const ids = registros.map((r) => r.id_omie);
+        const { data: existentes } = await supabase
+          .from(TBL_CLIENTES)
+          .select("id_omie")
+          .in("id_omie", ids);
+        const existentesSet = new Set((existentes || []).map((e) => e.id_omie));
 
-      // Batch insert
-      if (paraInserir.length > 0) {
-        await supabase.from(TBL_CLIENTES).insert(paraInserir);
-        novos += paraInserir.length;
+        const paraInserir = registros.filter((r) => !existentesSet.has(r.id_omie));
+        const paraAtualizar = registros.filter((r) => existentesSet.has(r.id_omie));
+
+        if (paraInserir.length > 0) {
+          await supabase.from(TBL_CLIENTES).insert(paraInserir);
+          novos += paraInserir.length;
+        }
+
+        if (paraAtualizar.length > 0) {
+          await supabase.from(TBL_CLIENTES).upsert(paraAtualizar, { onConflict: "id_omie" });
+          atualizados += paraAtualizar.length;
+        }
+
+        total += registros.length;
       }
 
-      // Batch update via upsert (onConflict on id_omie)
-      if (paraAtualizar.length > 0) {
-        await supabase.from(TBL_CLIENTES).upsert(paraAtualizar, { onConflict: "id_omie" });
-        atualizados += paraAtualizar.length;
-      }
-
-      total += registros.length;
+      console.log(`[Sync Clientes ${acc.name}] Pág ${pagina}/${totalPaginas}`);
+      pagina++;
+      await new Promise((r) => setTimeout(r, 400));
     }
-
-    pagina++;
-
-    // Respeitar rate limit do Omie (máx 3 req/s)
-    await new Promise((r) => setTimeout(r, 400));
   }
 
   return { total, novos, atualizados };
@@ -147,42 +147,47 @@ interface OmieProjetoResponse {
 }
 
 export async function syncProjetos(): Promise<{ total: number; novos: number }> {
-  let pagina = 1;
-  let totalPaginas = 1;
   let total = 0;
   let novos = 0;
 
-  while (pagina <= totalPaginas) {
-    const res = await omieCall<OmieProjetoResponse>(
-      "/geral/projetos/",
-      "ListarProjetos",
-      { pagina, registros_por_pagina: 500 }
-    );
+  for (const acc of OMIE_ACCOUNTS) {
+    let pagina = 1;
+    let totalPaginas = 1;
 
-    totalPaginas = res.total_de_paginas;
+    while (pagina <= totalPaginas) {
+      const res = await omieCall<OmieProjetoResponse>(
+        "/geral/projetos/",
+        "ListarProjetos",
+        { pagina, registros_por_pagina: 500 },
+        acc
+      );
 
-    const projetosPagina = res.cadastro || [];
-    if (projetosPagina.length > 0) {
-      const nomes = projetosPagina.map((p) => p.nome);
-      const { data: existentes } = await supabase
-        .from(TBL_PROJETOS_DB)
-        .select("Nome_Projeto")
-        .in("Nome_Projeto", nomes);
-      const existentesSet = new Set((existentes || []).map((e) => e.Nome_Projeto));
+      totalPaginas = res.total_de_paginas;
 
-      const novosProj = projetosPagina
-        .filter((p) => !existentesSet.has(p.nome))
-        .map((p) => ({ Nome_Projeto: p.nome }));
+      const projetosPagina = res.cadastro || [];
+      if (projetosPagina.length > 0) {
+        const nomes = projetosPagina.map((p) => p.nome);
+        const { data: existentes } = await supabase
+          .from(TBL_PROJETOS_DB)
+          .select("Nome_Projeto")
+          .in("Nome_Projeto", nomes);
+        const existentesSet = new Set((existentes || []).map((e) => e.Nome_Projeto));
 
-      if (novosProj.length > 0) {
-        await supabase.from(TBL_PROJETOS_DB).insert(novosProj);
-        novos += novosProj.length;
+        const novosProj = projetosPagina
+          .filter((p) => !existentesSet.has(p.nome))
+          .map((p) => ({ Nome_Projeto: p.nome }));
+
+        if (novosProj.length > 0) {
+          await supabase.from(TBL_PROJETOS_DB).insert(novosProj);
+          novos += novosProj.length;
+        }
+        total += projetosPagina.length;
       }
-      total += projetosPagina.length;
-    }
 
-    pagina++;
-    await new Promise((r) => setTimeout(r, 400));
+      console.log(`[Sync Projetos ${acc.name}] Pág ${pagina}/${totalPaginas} (${projetosPagina.length} registros)`);
+      pagina++;
+      await new Promise((r) => setTimeout(r, 400));
+    }
   }
 
   return { total, novos };
