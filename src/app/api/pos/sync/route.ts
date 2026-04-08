@@ -49,6 +49,35 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ erro: "Não autorizado" }, { status: 401 });
   }
 
+  // Permite sync individual por tipo (para barra de progresso no frontend)
+  const { searchParams } = new URL(req.url);
+  const tipo = searchParams.get("tipo");
+
+  if (tipo === "clientes") {
+    try {
+      const r = await syncClientes();
+      return NextResponse.json({ sucesso: true, resultado: r });
+    } catch (err) {
+      return NextResponse.json({ sucesso: false, erro: err instanceof Error ? err.message : String(err) }, { status: 500 });
+    }
+  }
+  if (tipo === "projetos") {
+    try {
+      const r = await syncProjetos();
+      return NextResponse.json({ sucesso: true, resultado: r });
+    } catch (err) {
+      return NextResponse.json({ sucesso: false, erro: err instanceof Error ? err.message : String(err) }, { status: 500 });
+    }
+  }
+  if (tipo === "produtos") {
+    try {
+      const r = await syncProdutos();
+      return NextResponse.json({ sucesso: true, resultado: r });
+    } catch (err) {
+      return NextResponse.json({ sucesso: false, erro: err instanceof Error ? err.message : String(err) }, { status: 500 });
+    }
+  }
+
   const resultado = await executarSync();
   return NextResponse.json(resultado);
 }

@@ -9,7 +9,7 @@ import {
   Settings, ClipboardList, Wrench, FileText,
   DollarSign, Activity, Clock, ChevronRight, Search,
   BarChart3, Users, Package, ClipboardCheck, AlertTriangle,
-  CheckCircle2, Map
+  CheckCircle2, Map, RefreshCw, Database, X, Check
 } from 'lucide-react'
 
 interface SystemCard {
@@ -148,6 +148,12 @@ export default function DashboardPage() {
   const [currentTime, setCurrentTime] = useState(new Date())
   const [minhasTarefas, setMinhasTarefas] = useState<any[]>([])
   const [tarefasLoading, setTarefasLoading] = useState(true)
+  const [showSync, setShowSync] = useState(false)
+  const [syncRunning, setSyncRunning] = useState(false)
+  const [syncProgress, setSyncProgress] = useState(0)
+  const [syncStep, setSyncStep] = useState('')
+  const [syncResults, setSyncResults] = useState<any>(null)
+  const [syncError, setSyncError] = useState('')
 
   // Refresh ao voltar para a aba
   const refreshDashboard = useCallback(() => {
@@ -235,6 +241,57 @@ export default function DashboardPage() {
     if (h < 12) return 'Bom dia'
     if (h < 18) return 'Boa tarde'
     return 'Boa noite'
+  }
+
+  const executarSync = async () => {
+    setSyncRunning(true)
+    setSyncProgress(0)
+    setSyncResults(null)
+    setSyncError('')
+    const results: any = {}
+
+    const steps = [
+      { tipo: 'clientes', label: 'Sincronizando clientes...', peso: 33 },
+      { tipo: 'projetos', label: 'Sincronizando projetos...', peso: 66 },
+      { tipo: 'produtos', label: 'Sincronizando produtos...', peso: 100 },
+    ]
+
+    try {
+      for (const step of steps) {
+        setSyncStep(step.label)
+        // Anima progresso suavemente até o próximo alvo
+        const prev = step.peso === 33 ? 0 : step.peso === 66 ? 33 : 66
+        let current = prev
+        const interval = setInterval(() => {
+          current = Math.min(current + 1, step.peso - 2)
+          setSyncProgress(current)
+        }, 300)
+
+        const res = await fetch(`/api/pos/sync?tipo=${step.tipo}`, {
+          method: 'POST',
+          headers: { 'x-sync-manual': 'true' },
+        })
+        clearInterval(interval)
+        const data = await res.json()
+
+        if (!data.sucesso) {
+          setSyncError(data.erro || `Erro em ${step.tipo}`)
+          setSyncProgress(step.peso)
+          setSyncRunning(false)
+          return
+        }
+
+        results[step.tipo] = data.resultado
+        setSyncProgress(step.peso)
+      }
+
+      setSyncStep('Concluído!')
+      setSyncResults(results)
+    } catch (err: any) {
+      setSyncError(err.message || 'Erro desconhecido')
+    } finally {
+      setSyncRunning(false)
+    }
   }
 
   return (
@@ -646,13 +703,165 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* Modal Sync Omie */}
+      {showSync && (
+        <div
+          onClick={(e) => { if (e.target === e.currentTarget && !syncRunning) setShowSync(false) }}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+            backdropFilter: 'blur(8px)', zIndex: 50000,
+            display: 'flex', alignItems: 'center', justifyContent: 'center'
+          }}
+        >
+          <div style={{
+            background: '#fff', borderRadius: '24px', width: '480px',
+            padding: '40px', boxShadow: '0 25px 60px rgba(0,0,0,0.15)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{
+                  width: '44px', height: '44px', borderRadius: '12px',
+                  background: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}>
+                  <Database size={22} color="#dc2626" />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#1a1a1a', margin: 0 }}>Sync Omie</h3>
+                  <p style={{ fontSize: '12px', color: '#a3a3a3', margin: 0 }}>Clientes, projetos e produtos</p>
+                </div>
+              </div>
+              {!syncRunning && (
+                <button onClick={() => setShowSync(false)} style={{
+                  background: '#f5f5f5', border: 'none', borderRadius: '10px',
+                  width: '36px', height: '36px', display: 'flex', alignItems: 'center',
+                  justifyContent: 'center', cursor: 'pointer', color: '#737373'
+                }}>
+                  <X size={18} />
+                </button>
+              )}
+            </div>
+
+            {/* Barra de progresso */}
+            <div style={{
+              background: '#f5f5f5', borderRadius: '12px', height: '12px',
+              overflow: 'hidden', marginBottom: '16px'
+            }}>
+              <div style={{
+                height: '100%', borderRadius: '12px',
+                background: syncError ? '#ef4444' : syncProgress === 100 ? '#22c55e' : 'linear-gradient(90deg, #dc2626, #ef4444)',
+                width: `${syncProgress}%`,
+                transition: 'width 0.4s ease-out'
+              }} />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+              <span style={{ fontSize: '13px', color: syncError ? '#ef4444' : '#737373', fontWeight: '500' }}>
+                {syncError || syncStep || 'Pronto para sincronizar'}
+              </span>
+              <span style={{ fontSize: '20px', fontWeight: '700', color: syncProgress === 100 ? '#22c55e' : '#1a1a1a' }}>
+                {syncProgress}%
+              </span>
+            </div>
+
+            {/* Etapas */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '28px' }}>
+              {[
+                { label: 'Clientes', key: 'clientes', target: 33 },
+                { label: 'Projetos', key: 'projetos', target: 66 },
+                { label: 'Produtos', key: 'produtos', target: 100 },
+              ].map(s => {
+                const done = syncProgress >= s.target
+                const active = syncRunning && !done && syncProgress >= s.target - 33
+                return (
+                  <div key={s.key} style={{
+                    display: 'flex', alignItems: 'center', gap: '12px',
+                    padding: '12px 16px', borderRadius: '12px',
+                    background: done ? '#f0fdf4' : active ? '#fef2f2' : '#fafafa',
+                    border: `1px solid ${done ? '#bbf7d0' : active ? '#fecaca' : '#f0f0f0'}`,
+                    transition: 'all 0.3s'
+                  }}>
+                    <div style={{
+                      width: '28px', height: '28px', borderRadius: '8px',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      background: done ? '#22c55e' : active ? '#dc2626' : '#e5e5e5',
+                      color: '#fff', flexShrink: 0
+                    }}>
+                      {done ? <Check size={14} /> : active ? <RefreshCw size={14} className="animate-spin" /> : <Database size={14} />}
+                    </div>
+                    <span style={{
+                      fontSize: '14px', fontWeight: done ? '600' : '500',
+                      color: done ? '#16a34a' : active ? '#dc2626' : '#a3a3a3'
+                    }}>
+                      {s.label}
+                    </span>
+                    {done && syncResults?.[s.key] && (
+                      <span style={{ marginLeft: 'auto', fontSize: '11px', color: '#16a34a', fontWeight: '600' }}>
+                        {syncResults[s.key].total} registros
+                      </span>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Botão */}
+            {!syncRunning && syncProgress < 100 && (
+              <button
+                onClick={executarSync}
+                style={{
+                  width: '100%', padding: '14px', borderRadius: '14px', border: 'none',
+                  background: 'linear-gradient(135deg, #dc2626, #b91c1c)', color: '#fff',
+                  fontSize: '15px', fontWeight: '700', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+                  boxShadow: '0 4px 12px rgba(220,38,38,0.3)', transition: 'all 0.2s'
+                }}
+              >
+                <RefreshCw size={18} /> Iniciar Sincronizacao
+              </button>
+            )}
+
+            {syncProgress === 100 && !syncError && (
+              <button
+                onClick={() => { setShowSync(false); setSyncProgress(0); setSyncStep(''); setSyncResults(null) }}
+                style={{
+                  width: '100%', padding: '14px', borderRadius: '14px', border: 'none',
+                  background: '#22c55e', color: '#fff',
+                  fontSize: '15px', fontWeight: '700', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px'
+                }}
+              >
+                <Check size={18} /> Concluido — Fechar
+              </button>
+            )}
+
+            {syncError && !syncRunning && (
+              <button
+                onClick={executarSync}
+                style={{
+                  width: '100%', padding: '14px', borderRadius: '14px', border: 'none',
+                  background: '#ef4444', color: '#fff',
+                  fontSize: '15px', fontWeight: '700', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px'
+                }}
+              >
+                <RefreshCw size={18} /> Tentar Novamente
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Footer */}
       <div style={{
         marginTop: '60px', paddingTop: '24px',
         borderTop: '1px solid #f0f0f0',
         textAlign: 'center'
       }}>
-        <p style={{ fontSize: '12px', color: '#d4d4d4', fontWeight: '500' }}>
+        <p
+          style={{ fontSize: '12px', color: '#d4d4d4', fontWeight: '500', cursor: 'default' }}
+          onDoubleClick={() => setShowSync(true)}
+          title=""
+        >
           Nova Tratores &copy; {new Date().getFullYear()} &mdash; Portal Corporativo v1.0
         </p>
       </div>
