@@ -62,6 +62,13 @@ export const editarPrecoSchema = z.object({
   empresa: z.string().optional(),
 });
 
+export const editarPrecoItemSchema = z.object({
+  id: z.string().min(1, "ID do pedido obrigatório"),
+  codigo: z.string().min(1, "Código obrigatório"),
+  preco: z.number().min(0, "Preço inválido"),
+  userName: z.string().optional().default(""),
+});
+
 export const buscaTermoSchema = z.object({
   termo: z.string().min(1, "Digite ao menos 1 caractere"),
 });

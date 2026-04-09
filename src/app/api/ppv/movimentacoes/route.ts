@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseFetch, formatarDataBR } from "@/lib/ppv/supabase";
 import { TBL_ITENS } from "@/lib/ppv/constants";
 import { buscarPPVPorId, atualizarValorTotal, registrarLog } from "@/lib/ppv/queries";
-import { movimentacaoSchema } from "@/lib/ppv/schemas";
+import { movimentacaoSchema, editarPrecoItemSchema } from "@/lib/ppv/schemas";
 import { logAndNotify } from "@/lib/server/audit-notify";
 
 export async function POST(req: NextRequest) {
@@ -45,6 +45,34 @@ export async function POST(req: NextRequest) {
     });
 
     const detalhes = await buscarPPVPorId(dados.id);
+    return NextResponse.json(detalhes);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erro desconhecido";
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}
+
+// Edita o preço de um item dentro de um PPV existente (atualiza todas as movimentações
+// daquele CodProduto naquele Id_PPV — saídas e devoluções — e recalcula o total)
+export async function PATCH(req: NextRequest) {
+  try {
+    const raw = await req.json();
+    const parsed = editarPrecoItemSchema.safeParse(raw);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues.map((i) => i.message).join(", ") }, { status: 400 });
+    }
+    const { id, codigo, preco, userName } = parsed.data;
+
+    await supabaseFetch(
+      `${TBL_ITENS}?Id_PPV=eq.${encodeURIComponent(id)}&CodProduto=eq.${encodeURIComponent(codigo)}`,
+      "PATCH",
+      { Preco: preco }
+    );
+
+    await atualizarValorTotal(id);
+    await registrarLog(id, `Preço do item ${codigo} alterado para R$ ${preco.toFixed(2)}`, userName || "Sistema");
+
+    const detalhes = await buscarPPVPorId(id);
     return NextResponse.json(detalhes);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erro desconhecido";

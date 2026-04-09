@@ -70,6 +70,9 @@ export const api = {
     preco: number; tecnico: string; tipoMovimento: string; userName?: string;
   }) => post<PPVDetalhes>("/api/ppv/movimentacoes", dados),
 
+  editarPrecoItem: (id: string, codigo: string, preco: number, userName?: string) =>
+    patch<PPVDetalhes>("/api/ppv/movimentacoes", { id, codigo, preco, userName }),
+
   // --- Busca de Clientes ---
   buscarClientes: (termo: string) =>
     request<ClienteBusca[]>(`/api/ppv/clientes?termo=${encodeURIComponent(termo)}`),

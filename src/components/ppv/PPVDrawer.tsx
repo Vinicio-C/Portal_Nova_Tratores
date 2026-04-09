@@ -68,6 +68,10 @@ export default function PPVDrawer({
   const [devolucaoProd, setDevolucaoProd] = useState<{ codigo: string; descricao: string; preco: number; max: number } | null>(null);
   const [confirmandoDev, setConfirmandoDev] = useState(false);
 
+  const [editandoPrecoCod, setEditandoPrecoCod] = useState<string | null>(null);
+  const [editandoPrecoVal, setEditandoPrecoVal] = useState("");
+  const [salvandoPreco, setSalvandoPreco] = useState(false);
+
   // Carregar listas para dropdown de substituto
   useEffect(() => {
     if (!temSubstituto) return;
@@ -194,6 +198,22 @@ export default function PPVDrawer({
       onDirty?.();
     } catch (e) { showToast("error", e instanceof Error ? e.message : "Erro"); }
     setAddingExtra(false);
+  }
+
+  async function salvarPrecoItem(codigo: string) {
+    if (!ppvId) return;
+    const preco = parseFloat(editandoPrecoVal.replace(",", "."));
+    if (isNaN(preco) || preco < 0) { showToast("error", "Preço inválido"); return; }
+    setSalvandoPreco(true);
+    try {
+      const d = await api.editarPrecoItem(ppvId, codigo, preco, userProfile?.nome || "");
+      setDetails(d);
+      setEditandoPrecoCod(null);
+      setEditandoPrecoVal("");
+      showToast("success", "Preço atualizado");
+      onDirty?.();
+    } catch (e) { showToast("error", e instanceof Error ? e.message : "Erro"); }
+    setSalvandoPreco(false);
   }
 
   async function confirmarDevolucao(quantidade: number) {
@@ -456,8 +476,61 @@ export default function PPVDrawer({
                                   </div>
                                 </div>
                                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                                  <span style={{ fontWeight: 700, whiteSpace: "nowrap" }}>{formatarMoeda(p.saldo * p.preco)}</span>
-                                  {p.saldo > 0 && (
+                                  {editandoPrecoCod === p.codigo ? (
+                                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                      <span style={{ fontSize: 11, color: "var(--ppv-text-light)" }}>R$</span>
+                                      <input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        autoFocus
+                                        value={editandoPrecoVal}
+                                        onChange={(e) => setEditandoPrecoVal(e.target.value)}
+                                        onKeyDown={(e) => {
+                                          if (e.key === "Enter") { e.preventDefault(); salvarPrecoItem(p.codigo); }
+                                          if (e.key === "Escape") { setEditandoPrecoCod(null); setEditandoPrecoVal(""); }
+                                        }}
+                                        disabled={salvandoPreco}
+                                        style={{ width: 90, padding: "4px 8px", marginBottom: 0, fontSize: 13, fontWeight: 700 }}
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => salvarPrecoItem(p.codigo)}
+                                        disabled={salvandoPreco}
+                                        title="Salvar"
+                                        style={{ background: "#10B981", color: "#fff", border: "none", borderRadius: 6, width: 28, height: 28, cursor: "pointer", fontSize: 12 }}
+                                      >
+                                        <i className={`fas ${salvandoPreco ? "fa-spinner fa-spin" : "fa-check"}`} />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => { setEditandoPrecoCod(null); setEditandoPrecoVal(""); }}
+                                        disabled={salvandoPreco}
+                                        title="Cancelar"
+                                        style={{ background: "#EF4444", color: "#fff", border: "none", borderRadius: 6, width: 28, height: 28, cursor: "pointer", fontSize: 12 }}
+                                      >
+                                        <i className="fas fa-times" />
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", lineHeight: 1.2 }}>
+                                        <span style={{ fontWeight: 700, whiteSpace: "nowrap" }}>{formatarMoeda(p.saldo * p.preco)}</span>
+                                        <span style={{ fontSize: 11, color: "var(--ppv-text-light)", whiteSpace: "nowrap" }}>
+                                          un. {formatarMoeda(p.preco)}
+                                        </span>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => { setEditandoPrecoCod(p.codigo); setEditandoPrecoVal(p.preco.toFixed(2)); }}
+                                        title="Editar preço unitário"
+                                        style={{ background: "transparent", border: "none", color: "#64748B", cursor: "pointer", padding: 4, fontSize: 13 }}
+                                      >
+                                        <i className="fas fa-pen" />
+                                      </button>
+                                    </>
+                                  )}
+                                  {p.saldo > 0 && editandoPrecoCod !== p.codigo && (
                                     <button
                                       onClick={() => { setDevolucaoProd({ codigo: p.codigo, descricao: p.descricao, preco: p.preco, max: p.saldo }); setDevolucaoOpen(true); }}
                                       className="ppv-btn-devolver"
