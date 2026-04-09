@@ -26,8 +26,10 @@ export async function GET(req: NextRequest) {
 
     if (abertas) {
       // Buscar todas as OS abertas (não concluídas/canceladas)
-      const statusFilter = STATUS_ABERTOS.map((s) => `Status.eq.${encodeURIComponent(s)}`).join(",");
-      url = `${TBL_OS}?or=(${statusFilter})&select=Id_Ordem,Os_Cliente,Status,Serv_Solicitado&order=Id_Ordem.desc&limit=200`;
+      // Usa in.() com valores entre aspas duplas para suportar status que contêm parênteses
+      // (ex: "Execução (Realizando Diagnóstico)") que quebrariam o or=() do PostgREST
+      const statusList = STATUS_ABERTOS.map((s) => `"${s}"`).join(",");
+      url = `${TBL_OS}?Status=in.(${encodeURIComponent(statusList)})&select=Id_Ordem,Os_Cliente,Status,Serv_Solicitado&order=Id_Ordem.desc&limit=200`;
     } else if (termo.trim()) {
       const query = termo.trim().replace(/ /g, "%");
       url = `${TBL_OS}?or=(Id_Ordem.ilike.*${query}*,Os_Cliente.ilike.*${query}*,Serv_Solicitado.ilike.*${query}*)&select=Id_Ordem,Os_Cliente,Status,Serv_Solicitado&limit=30&order=Id_Ordem.desc`;

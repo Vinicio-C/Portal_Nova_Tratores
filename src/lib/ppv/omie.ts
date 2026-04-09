@@ -235,11 +235,7 @@ export async function enviarPPVParaOmie(idPPV: string): Promise<{ sucesso: boole
     return { sucesso: false, erro: "PPV não encontrado" };
   }
 
-  // 2. Validações
-  if (detalhes.status !== "Executada aguardando comercial" && detalhes.status !== "Aguardando Para Faturar") {
-    return { sucesso: false, erro: `Status inválido: "${detalhes.status}". Precisa estar "Executada aguardando comercial"` };
-  }
-
+  // 2. Validações — permite faturar em qualquer status (igual ao card do POS)
   if (detalhes.pedidoOmie) {
     return { sucesso: false, erro: `PPV já possui pedido Omie: ${detalhes.pedidoOmie}` };
   }

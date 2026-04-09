@@ -9,7 +9,7 @@ import {
   Settings, ClipboardList, Wrench, FileText,
   DollarSign, Activity, Clock, ChevronRight, Search,
   BarChart3, Users, Package, ClipboardCheck, AlertTriangle,
-  CheckCircle2, Map, RefreshCw, Database, X, Check
+  CheckCircle2, Map, RefreshCw, Database, X, Check, Calculator
 } from 'lucide-react'
 
 interface SystemCard {
@@ -86,6 +86,16 @@ const systems: SystemCard[] = [
     tag: 'VENDAS'
   },
   {
+    id: 'orcamentos',
+    name: 'Orçamentos',
+    description: 'Orçamentos personalizados com peças, mão de obra e deslocamento',
+    icon: <Calculator size={28} />,
+    color: '#dc2626',
+    gradient: 'linear-gradient(135deg, #dc2626, #ef4444)',
+    href: '/orcamentos',
+    tag: 'ORÇAMENTOS'
+  },
+  {
     id: 'tarefas',
     name: 'Tarefas',
     description: 'Gestão de tarefas entre usuários',
@@ -133,6 +143,7 @@ const systemToModulo: Record<string, string> = {
   'pos': 'pos',
   'ppv': 'ppv',
   'proposta-comercial': 'propostas',
+  'orcamentos': 'orcamentos',
   'tarefas': 'tarefas',
   'painel-mecanicos': 'painel-mecanicos',
   'mapa-geral': 'mapa',
@@ -154,6 +165,9 @@ export default function DashboardPage() {
   const [syncStep, setSyncStep] = useState('')
   const [syncResults, setSyncResults] = useState<any>(null)
   const [syncError, setSyncError] = useState('')
+  const [syncSelection, setSyncSelection] = useState<{ clientes: boolean; projetos: boolean; produtos: boolean }>({
+    clientes: true, projetos: true, produtos: true,
+  })
 
   // Refresh ao voltar para a aba
   const refreshDashboard = useCallback(() => {
@@ -244,24 +258,31 @@ export default function DashboardPage() {
   }
 
   const executarSync = async () => {
+    // Monta apenas os steps selecionados, distribuindo o progresso igualmente
+    const tiposEscolhidos = (['clientes', 'projetos', 'produtos'] as const).filter(t => syncSelection[t])
+    if (tiposEscolhidos.length === 0) {
+      setSyncError('Selecione pelo menos um item para sincronizar')
+      return
+    }
+
     setSyncRunning(true)
     setSyncProgress(0)
     setSyncResults(null)
     setSyncError('')
     const results: any = {}
 
-    const steps = [
-      { tipo: 'clientes', label: 'Sincronizando clientes...', peso: 33 },
-      { tipo: 'projetos', label: 'Sincronizando projetos...', peso: 66 },
-      { tipo: 'produtos', label: 'Sincronizando produtos...', peso: 100 },
-    ]
+    const fatia = 100 / tiposEscolhidos.length
+    const steps = tiposEscolhidos.map((tipo, i) => ({
+      tipo,
+      label: `Sincronizando ${tipo}...`,
+      peso: Math.round(fatia * (i + 1)),
+      prev: Math.round(fatia * i),
+    }))
 
     try {
       for (const step of steps) {
         setSyncStep(step.label)
-        // Anima progresso suavemente até o próximo alvo
-        const prev = step.peso === 33 ? 0 : step.peso === 66 ? 33 : 66
-        let current = prev
+        let current = step.prev
         const interval = setInterval(() => {
           current = Math.min(current + 1, step.peso - 2)
           setSyncProgress(current)
@@ -285,6 +306,7 @@ export default function DashboardPage() {
         setSyncProgress(step.peso)
       }
 
+      setSyncProgress(100)
       setSyncStep('Concluído!')
       setSyncResults(results)
     } catch (err: any) {
@@ -781,23 +803,38 @@ export default function DashboardPage() {
               </span>
             </div>
 
-            {/* Etapas */}
+            {/* Etapas + seleção (checkboxes) */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '28px' }}>
-              {[
-                { label: 'Clientes', key: 'clientes', target: 33 },
-                { label: 'Projetos', key: 'projetos', target: 66 },
-                { label: 'Produtos', key: 'produtos', target: 100 },
-              ].map(s => {
-                const done = syncProgress >= s.target
-                const active = syncRunning && !done && syncProgress >= s.target - 33
+              {([
+                { label: 'Clientes', key: 'clientes' as const },
+                { label: 'Projetos', key: 'projetos' as const },
+                { label: 'Produtos', key: 'produtos' as const },
+              ]).map(s => {
+                const selected = syncSelection[s.key]
+                const hasResult = !!syncResults?.[s.key]
+                const done = hasResult
+                const active = syncRunning && selected && !done && syncStep.toLowerCase().includes(s.key)
+                const disabledVisual = !selected && !syncRunning
                 return (
-                  <div key={s.key} style={{
+                  <label key={s.key} style={{
                     display: 'flex', alignItems: 'center', gap: '12px',
                     padding: '12px 16px', borderRadius: '12px',
-                    background: done ? '#f0fdf4' : active ? '#fef2f2' : '#fafafa',
-                    border: `1px solid ${done ? '#bbf7d0' : active ? '#fecaca' : '#f0f0f0'}`,
-                    transition: 'all 0.3s'
+                    background: done ? '#f0fdf4' : active ? '#fef2f2' : disabledVisual ? '#fafafa' : '#fff7ed',
+                    border: `1px solid ${done ? '#bbf7d0' : active ? '#fecaca' : disabledVisual ? '#f0f0f0' : '#fed7aa'}`,
+                    transition: 'all 0.3s',
+                    cursor: syncRunning ? 'not-allowed' : 'pointer',
+                    opacity: disabledVisual ? 0.6 : 1,
                   }}>
+                    <input
+                      type="checkbox"
+                      checked={selected}
+                      disabled={syncRunning}
+                      onChange={e => setSyncSelection(prev => ({ ...prev, [s.key]: e.target.checked }))}
+                      style={{
+                        width: 18, height: 18, accentColor: '#dc2626',
+                        cursor: syncRunning ? 'not-allowed' : 'pointer', flexShrink: 0,
+                      }}
+                    />
                     <div style={{
                       width: '28px', height: '28px', borderRadius: '8px',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -808,7 +845,7 @@ export default function DashboardPage() {
                     </div>
                     <span style={{
                       fontSize: '14px', fontWeight: done ? '600' : '500',
-                      color: done ? '#16a34a' : active ? '#dc2626' : '#a3a3a3'
+                      color: done ? '#16a34a' : active ? '#dc2626' : '#525252'
                     }}>
                       {s.label}
                     </span>
@@ -817,7 +854,7 @@ export default function DashboardPage() {
                         {syncResults[s.key].total} registros
                       </span>
                     )}
-                  </div>
+                  </label>
                 )
               })}
             </div>

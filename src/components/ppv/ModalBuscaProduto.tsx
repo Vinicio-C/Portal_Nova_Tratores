@@ -19,7 +19,10 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
   const [resultados, setResultados] = useState<ProdutoBusca[]>([]);
   const [buscando, setBuscando] = useState(false);
   const [mensagem, setMensagem] = useState("Digite para pesquisar produtos...");
+  const [editandoPreco, setEditandoPreco] = useState<{ idx: number; valor: string } | null>(null);
+  const [salvandoPreco, setSalvandoPreco] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const precoInputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -56,7 +59,33 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
     debounceRef.current = setTimeout(() => buscar(value), 400);
   }
 
+  async function salvarPrecoEditado(idx: number) {
+    if (!editandoPreco) return;
+    const novoPreco = parseFloat(editandoPreco.valor.replace(",", "."));
+    if (isNaN(novoPreco) || novoPreco < 0) {
+      showToast("error", "Preço inválido.");
+      return;
+    }
+    const p = resultados[idx];
+    setSalvandoPreco(true);
+    try {
+      if (p.origem === "manuais" && p.id_manual) {
+        await api.salvarProdutoManual({ id: String(p.id_manual), codigo: p.codigo, descricao: p.descricao, preco: novoPreco });
+      } else {
+        await api.editarPrecoProduto(p.codigo, novoPreco, p.empresa);
+      }
+      setResultados((prev) => prev.map((item, i) => i === idx ? { ...item, preco: novoPreco } : item));
+      cacheProduct(p.codigo, p.descricao, novoPreco, p.empresa);
+      showToast("success", `Preço de ${p.codigo} atualizado para R$ ${novoPreco.toFixed(2)}`);
+      setEditandoPreco(null);
+    } catch {
+      showToast("error", "Erro ao salvar preço.");
+    }
+    setSalvandoPreco(false);
+  }
+
   function handleClick(p: ProdutoBusca) {
+    if (editandoPreco !== null) return;
     if (mode === "edit") {
       if (p.origem === "manuais" && p.id_manual) {
         onEditManual?.(p.id_manual, p.codigo, p.descricao, p.preco);
@@ -142,7 +171,56 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
                         <div className="truncate" title={p.descricao}>{highlightMatch(p.descricao)}</div>
                       </td>
                       <td className="px-4 py-3 text-right text-[13px] font-semibold text-slate-800">
-                        R$ {p.preco.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                        <div className="flex items-center justify-end gap-1.5">
+                          {editandoPreco?.idx === idx ? (
+                            <>
+                              <span className="text-[11px] text-slate-400">R$</span>
+                              <input
+                                ref={precoInputRef}
+                                type="text"
+                                value={editandoPreco.valor}
+                                onChange={(e) => setEditandoPreco({ idx, valor: e.target.value })}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") salvarPrecoEditado(idx);
+                                  if (e.key === "Escape") setEditandoPreco(null);
+                                }}
+                                className="w-24 rounded border border-orange-300 px-2 py-1 text-right text-[13px] focus:outline-none focus:ring-1 focus:ring-orange-400"
+                                autoFocus
+                                disabled={salvandoPreco}
+                              />
+                              <button
+                                onClick={(e) => { e.stopPropagation(); salvarPrecoEditado(idx); }}
+                                disabled={salvandoPreco}
+                                className="rounded p-1 text-emerald-600 hover:bg-emerald-50 disabled:opacity-50"
+                                title="Salvar"
+                              >
+                                <i className="fas fa-check text-[11px]" />
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setEditandoPreco(null); }}
+                                disabled={salvandoPreco}
+                                className="rounded p-1 text-slate-400 hover:bg-slate-100"
+                                title="Cancelar"
+                              >
+                                <i className="fas fa-times text-[11px]" />
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <span>R$ {p.preco.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditandoPreco({ idx, valor: p.preco.toFixed(2).replace(".", ",") });
+                                }}
+                                className="ml-1 rounded p-1 text-slate-300 transition-colors hover:bg-orange-50 hover:text-orange-500"
+                                title="Editar preço"
+                              >
+                                <i className="fas fa-pencil-alt text-[10px]" />
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-center">
                         {p.empresa ? (() => {

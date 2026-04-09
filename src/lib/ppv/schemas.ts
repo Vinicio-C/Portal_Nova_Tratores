@@ -56,6 +56,12 @@ export const movimentacaoSchema = z.object({
   userName: z.string().optional().default(""),
 });
 
+export const editarPrecoSchema = z.object({
+  codigo: z.string().min(1, "Código obrigatório"),
+  preco: z.number().min(0, "Preço inválido"),
+  empresa: z.string().optional(),
+});
+
 export const buscaTermoSchema = z.object({
   termo: z.string().min(1, "Digite ao menos 1 caractere"),
 });

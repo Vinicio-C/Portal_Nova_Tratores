@@ -1,5 +1,6 @@
 import { supabase } from "./supabase";
-import { TBL_OS, TBL_CLIENTES, TBL_ITENS, TBL_PEDIDOS, TBL_LOGS_PPV, VALOR_HORA, VALOR_KM } from "./constants";
+import { TBL_OS, TBL_CLIENTES, TBL_PEDIDOS, TBL_LOGS_PPV, VALOR_HORA, VALOR_KM } from "./constants";
+import { enviarPPVParaOmie } from "@/lib/ppv/omie";
 
 // --- Credenciais ---
 const OMIE_APP_KEY = process.env.OMIE_APP_KEY || "";
@@ -9,7 +10,6 @@ const OMIE_BASE_URL = "https://app.omie.com.br/api/v1";
 // --- Constantes Omie ---
 const OMIE_ETAPA_EXECUTADA = "30";
 const OMIE_COD_CATEG = "1.01.02";
-const OMIE_COD_CATEG_VENDA = "1.01.03";
 const OMIE_COD_CC = 1969919780; // Banco do Brasil
 const OMIE_NCODSERV_HORA = 1979758762; // Hora Trabalhada (R$193/h)
 const OMIE_NCODSERV_KM = 1975974257; // KM Deslocamento (R$2,80/km)
@@ -498,132 +498,51 @@ export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean
 
     console.log(`[Omie] ✓ ${idOrdem} → OS nº ${resposta.cNumOS} (ID: ${resposta.nCodOS})`);
 
-    // PPV vinculado NÃO é mais enviado junto com a OS.
-    // O envio do pedido de venda (peças) é feito separadamente pelo botão no PPV.
+    // Envia PPVs vinculados como Pedido de Venda no Omie (usa função multi-conta do PPV)
+    let pedidoVenda: string | undefined;
+    let pedidoVendaErro: string | undefined;
+
+    const ppvIds = String(os.ID_PPV || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    if (ppvIds.length > 0) {
+      const numeros: string[] = [];
+      const erros: string[] = [];
+      for (const ppvId of ppvIds) {
+        try {
+          const r = await enviarPPVParaOmie(ppvId);
+          if (r.sucesso && r.numeroPedido) {
+            numeros.push(`${ppvId}:${r.numeroPedido}`);
+          } else if (r.erro) {
+            erros.push(`${ppvId}: ${r.erro}`);
+          }
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          erros.push(`${ppvId}: ${msg}`);
+        }
+      }
+      if (numeros.length > 0) pedidoVenda = numeros.join(", ");
+      if (erros.length > 0) pedidoVendaErro = erros.join(" | ");
+
+      // Fecha PPVs vinculados (os que não tiveram erro já ficam "Concluída" pela enviarPPVParaOmie;
+      // aqui garante fechamento dos demais)
+      try {
+        await fecharPPVsVinculados(ppvIds, idOrdem);
+      } catch (e) {
+        console.error(`[Omie] Erro ao fechar PPVs vinculados ${idOrdem}:`, e);
+      }
+    }
 
     return {
       sucesso: true, nCodOS: resposta.nCodOS, cNumOS: resposta.cNumOS,
+      pedidoVenda, pedidoVendaErro,
     };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`[Omie] ✗ ${idOrdem}: ${msg}`);
     return { sucesso: false, erro: msg };
-  }
-}
-
-// --- Lookup de produto no Omie (código interno → codigo_produto) ---
-const cacheProdutos = new Map<string, number>();
-
-async function buscarCodigoProdutoOmie(codigoInterno: string): Promise<number> {
-  if (cacheProdutos.has(codigoInterno)) return cacheProdutos.get(codigoInterno)!;
-
-  const result = await omieCall<{ codigo_produto?: number; codigo?: string }>(
-    "/produtos/produto/",
-    "ConsultarProduto",
-    { codigo: codigoInterno }
-  );
-
-  const codProd = result?.codigo_produto;
-  if (!codProd) {
-    throw new Error(`Produto não encontrado no Omie: ${codigoInterno}`);
-  }
-
-  cacheProdutos.set(codigoInterno, codProd);
-  return codProd;
-}
-
-// --- Criar Pedido de Venda no Omie a partir dos produtos do PPV ---
-async function criarPedidoVendaNoOmie(
-  idOrdem: string,
-  ppvIds: string[],
-  nCodCli: number,
-  nCodProj: number,
-  nCodVend: number,
-): Promise<{ numero?: string; erro?: string }> {
-  try {
-    // Busca produtos de todos os PPVs vinculados
-    const { data: items } = await supabase
-      .from(TBL_ITENS)
-      .select("*")
-      .in("Id_PPV", ppvIds);
-
-    if (!items || items.length === 0) {
-      console.log(`[Omie PV] Sem produtos nos PPVs ${ppvIds.join(",")}, pulando pedido de venda`);
-      return {};
-    }
-
-    // Agrupa por CodProduto (net de devoluções)
-    const resumo: Record<string, { descricao: string; qtde: number; preco: number }> = {};
-    for (const item of items) {
-      const cod = String(item.CodProduto || "");
-      const desc = String(item.Descricao || "");
-      const preco = parseFloat(String(item.Preco || 0));
-      let qtd = Math.abs(parseFloat(String(item.Qtde || 0)));
-      if (String(item.TipoMovimento || "").toLowerCase().includes("devolu")) qtd = -qtd;
-      if (!resumo[cod]) resumo[cod] = { descricao: desc, qtde: 0, preco };
-      resumo[cod].qtde += qtd;
-    }
-
-    // Filtra produtos com quantidade positiva
-    const produtosFinais = Object.entries(resumo).filter(([, p]) => p.qtde > 0);
-    if (produtosFinais.length === 0) {
-      console.log(`[Omie PV] Todos os produtos foram devolvidos, pulando pedido de venda`);
-      return {};
-    }
-
-    // Monta os itens do pedido (busca codigo_produto no Omie)
-    const det: Array<{ ide: { codigo_item_integracao: string }; produto: { codigo_produto: number; quantidade: number; valor_unitario: number } }> = [];
-    for (let i = 0; i < produtosFinais.length; i++) {
-      const [cod, prod] = produtosFinais[i];
-      const codigoProdutoOmie = await buscarCodigoProdutoOmie(cod);
-      det.push({
-        ide: { codigo_item_integracao: `${idOrdem}-${i + 1}` },
-        produto: {
-          codigo_produto: codigoProdutoOmie,
-          quantidade: prod.qtde,
-          valor_unitario: prod.preco,
-        },
-      });
-    }
-
-    const payload = {
-      cabecalho: {
-        codigo_pedido_integracao: `PV-${idOrdem}`,
-        codigo_cliente: nCodCli,
-        data_previsao: formatarDataOmie(new Date().toISOString()),
-        etapa: "10", // Aprovado
-        quantidade_itens: det.length,
-      },
-      informacoes_adicionais: {
-        codigo_categoria: OMIE_COD_CATEG_VENDA,
-        codigo_conta_corrente: OMIE_COD_CC,
-        codVend: nCodVend || undefined,
-        codProj: nCodProj || undefined,
-        numero_contrato: idOrdem, // Cross-reference: OS → Pedido
-      },
-      det,
-    };
-
-    const resposta = await omieCall<{ numero_pedido?: string; codigo_pedido?: number }>(
-      "/produtos/pedido/",
-      "IncluirPedido",
-      payload as unknown as Record<string, unknown>
-    );
-
-    const numPedido = resposta.numero_pedido || String(resposta.codigo_pedido || "");
-    console.log(`[Omie PV] ✓ ${idOrdem} → Pedido de Venda nº ${numPedido}`);
-
-    // Salva o número do pedido de venda em todos os PPVs (batch)
-    await supabase
-      .from(TBL_PEDIDOS)
-      .update({ pedido_omie: numPedido })
-      .in("id_pedido", ppvIds);
-
-    return { numero: numPedido };
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error(`[Omie PV] ✗ ${idOrdem}: ${msg}`);
-    return { erro: msg };
   }
 }
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseFetch, getValorInsensivel } from "@/lib/ppv/supabase";
 import { TBL_PRODUTOS, TBL_PRODUTOS_MANUAIS } from "@/lib/ppv/constants";
-import { buscaTermoSchema, produtoManualSchema } from "@/lib/ppv/schemas";
+import { buscaTermoSchema, produtoManualSchema, editarPrecoSchema } from "@/lib/ppv/schemas";
 import type { ProdutoBusca } from "@/lib/ppv/types";
 
 // GET - Buscar produtos
@@ -51,6 +51,30 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.json(resultados);
+}
+
+// PATCH - Editar preço de produto (Produtos_Completos)
+export async function PATCH(req: NextRequest) {
+  try {
+    const raw = await req.json();
+    const parsed = editarPrecoSchema.safeParse(raw);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues.map((i) => i.message).join(", ") }, { status: 400 });
+    }
+    const { codigo, preco, empresa } = parsed.data;
+
+    let query = `${TBL_PRODUTOS}?Codigo_Produto=eq.${encodeURIComponent(codigo)}`;
+    if (empresa) {
+      query += `&Empresa=eq.${encodeURIComponent(empresa)}`;
+    }
+
+    await supabaseFetch(query, "PATCH", { Preco_Venda: preco });
+
+    return NextResponse.json({ success: true });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Erro desconhecido";
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }
 
 // POST - Salvar produto manual

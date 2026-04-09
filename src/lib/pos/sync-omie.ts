@@ -67,7 +67,7 @@ interface OmieClienteResponse {
 
 export async function syncClientes(): Promise<{ total: number; novos: number; atualizados: number }> {
   let total = 0;
-  let novos = 0;
+  const novos = 0;
   let atualizados = 0;
 
   for (const acc of OMIE_ACCOUNTS) {
@@ -84,7 +84,7 @@ export async function syncClientes(): Promise<{ total: number; novos: number; at
 
       totalPaginas = res.total_de_paginas;
 
-      const registros = (res.clientes_cadastro || []).map((c) => {
+      const brutos = (res.clientes_cadastro || []).map((c) => {
         const endereco = [c.endereco, c.endereco_numero].filter(Boolean).join(", ");
         return {
           id_omie: String(c.codigo_cliente_omie),
@@ -101,28 +101,24 @@ export async function syncClientes(): Promise<{ total: number; novos: number; at
         };
       });
 
+      // Remove duplicatas dentro da mesma página (Omie às vezes retorna repetidos)
+      const dedupMap = new Map<string, typeof brutos[number]>();
+      for (const r of brutos) dedupMap.set(r.id_omie, r);
+      const registros = Array.from(dedupMap.values());
+
       if (registros.length > 0) {
-        const ids = registros.map((r) => r.id_omie);
-        const { data: existentes } = await supabase
+        // Upsert único — evita erros silenciosos de insert com chave duplicada
+        const { error } = await supabase
           .from(TBL_CLIENTES)
-          .select("id_omie")
-          .in("id_omie", ids);
-        const existentesSet = new Set((existentes || []).map((e) => e.id_omie));
+          .upsert(registros, { onConflict: "id_omie" });
 
-        const paraInserir = registros.filter((r) => !existentesSet.has(r.id_omie));
-        const paraAtualizar = registros.filter((r) => existentesSet.has(r.id_omie));
-
-        if (paraInserir.length > 0) {
-          await supabase.from(TBL_CLIENTES).insert(paraInserir);
-          novos += paraInserir.length;
-        }
-
-        if (paraAtualizar.length > 0) {
-          await supabase.from(TBL_CLIENTES).upsert(paraAtualizar, { onConflict: "id_omie" });
-          atualizados += paraAtualizar.length;
+        if (error) {
+          console.error(`Erro upsert clientes [${acc.name}] pág ${pagina}:`, error.message);
+          throw new Error(`Falha ao salvar clientes da pág ${pagina} (${acc.name}): ${error.message}`);
         }
 
         total += registros.length;
+        atualizados += registros.length;
       }
 
       console.log(`[Sync Clientes ${acc.name}] Pág ${pagina}/${totalPaginas}`);

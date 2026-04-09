@@ -9,7 +9,7 @@ import {
   LogOut, Settings, ClipboardList, Wrench, FileText,
   DollarSign, Package, Menu, X, User as UserIcon,
   LayoutDashboard, Bell, ChevronRight, Activity, Lock, MessageCircle,
-  CheckCheck, Trash2, ExternalLink, Calendar, Users
+  CheckCheck, Trash2, ExternalLink, Calendar, Users, Calculator
 } from 'lucide-react'
 import Link from 'next/link'
 import ChatPanel from './chat/ChatPanel'
@@ -81,6 +81,14 @@ const navItems: NavItem[] = [
     icon: <FileText size={18} />,
     tag: 'VENDAS',
     gradient: 'linear-gradient(135deg, #991b1b, #7f1d1d)'
+  },
+  {
+    id: 'orcamentos',
+    name: 'Orçamentos',
+    href: '/orcamentos',
+    icon: <Calculator size={18} />,
+    tag: 'ORÇAMENTOS',
+    gradient: 'linear-gradient(135deg, #dc2626, #ef4444)'
   },
   {
     id: 'atividades',

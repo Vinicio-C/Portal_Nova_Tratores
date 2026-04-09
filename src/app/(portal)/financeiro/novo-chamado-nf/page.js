@@ -28,7 +28,7 @@ export default function NovoChamadoNF() {
   const [filePeca, setFilePeca] = useState(null)
   const [fileComprovante, setFileComprovante] = useState(null)
 
-  const exigeComprovante = ['Pix', 'Cartão a vista', 'Cartão Parcelado'].includes(formData.forma_pagamento);
+  const exigeComprovante = ['Pix', 'Cartão a vista', 'Cartão Parcelado', 'Cheque'].includes(formData.forma_pagamento);
 
   useEffect(() => {
     async function load() {
@@ -161,6 +161,7 @@ export default function NovoChamadoNF() {
                 <option value="Boleto Parcelado">Boleto Parcelado</option>
                 <option value="Cartão a vista">Cartao a vista</option>
                 <option value="Cartão Parcelado">Cartao Parcelado</option>
+                <option value="Cheque">Cheque</option>
               </select>
             </Field>
 
@@ -173,7 +174,7 @@ export default function NovoChamadoNF() {
             )}
 
             {/* DATAS SIMPLES */}
-            {(formData.forma_pagamento === 'Pix' || formData.forma_pagamento === 'Boleto 30 dias' || formData.forma_pagamento === 'Cartão a vista') && (
+            {(formData.forma_pagamento === 'Pix' || formData.forma_pagamento === 'Boleto 30 dias' || formData.forma_pagamento === 'Cartão a vista' || formData.forma_pagamento === 'Cheque') && (
               <Field label="Data de Vencimento / Referencia" icon={<Calendar size={18} />}>
                 <input type="date" required style={inputIconStyle} onChange={(e) => {
                   const d = [...datasParcelas]; d[0] = e.target.value; setDatasParcelas(d);

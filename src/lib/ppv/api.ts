@@ -91,6 +91,9 @@ export const api = {
   salvarProdutoManual: (dados: DadosProdutoManual) =>
     post<{ success: boolean }>("/api/ppv/produtos", dados),
 
+  editarPrecoProduto: (codigo: string, preco: number, empresa?: string) =>
+    patch<{ success: boolean }>("/api/ppv/produtos", { codigo, preco, empresa }),
+
   // --- Revisões / Kit ---
   buscarKitRevisao: (trator: string, horas: string) =>
     request<ItemRevisao[]>(`/api/ppv/revisoes?trator=${encodeURIComponent(trator)}&horas=${encodeURIComponent(horas)}`),
