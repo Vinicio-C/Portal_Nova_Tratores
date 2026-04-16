@@ -4,10 +4,10 @@ const API_URL = process.env.ROTAEXATA_API_URL || 'https://api.rotaexata.com.br'
 const EMAIL = process.env.ROTAEXATA_EMAIL || ''
 const PASSWORD = process.env.ROTAEXATA_PASSWORD || ''
 
-// Coordenadas da loja (Nova Tratores - Piraju/SP — baseado no estacionamento GPS dos veículos)
+// Coordenadas da loja (fallback se não encontrar nos destinos)
 const LOJA_LAT = -23.2085
 const LOJA_LNG = -49.3710
-const RAIO_LOJA_KM = 0.8 // 800m de raio
+const RAIO_LOJA_KM = 0.8
 
 let tokenCache: { token: string; expiresAt: number } | null = null
 
@@ -27,7 +27,6 @@ async function getToken(): Promise<string> {
   return data.token
 }
 
-// Fetch genérico — retorna null em vez de throw no 404 (sem registros)
 async function fetchRotaExata(endpoint: string, params?: Record<string, string>): Promise<any> {
   const token = await getToken()
   let url = `${API_URL}${endpoint}`
@@ -38,7 +37,6 @@ async function fetchRotaExata(endpoint: string, params?: Record<string, string>)
     url += `?${qs}`
   }
   const res = await fetch(url, { headers: { Authorization: token } })
-
   if (res.status === 404) return { data: [] }
   if (!res.ok) {
     const text = await res.text()
@@ -47,7 +45,33 @@ async function fetchRotaExata(endpoint: string, params?: Record<string, string>)
   return res.json()
 }
 
-// Haversine
+// ── Destinos (pontos de interesse cadastrados na Rota Exata) ──
+interface Destino {
+  id: number; nome: string; latitude: number; longitude: number
+  raio: number; tipo_local: string[]; endereco: string; cnpj: string
+}
+
+let destinosCache: { destinos: Destino[]; fetchedAt: number } | null = null
+
+async function getDestinos(): Promise<Destino[]> {
+  if (destinosCache && Date.now() - destinosCache.fetchedAt < 60 * 60 * 1000) {
+    return destinosCache.destinos
+  }
+  try {
+    const data = await fetchRotaExata('/destinos', { limit: '500', page: '0' })
+    const raw = Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data : [])
+    const destinos: Destino[] = raw.map((d: any) => ({
+      id: d.id || d._id, nome: d.nome || '', latitude: d.latitude || 0, longitude: d.longitude || 0,
+      raio: d.raio || 500, tipo_local: Array.isArray(d.tipo_local) ? d.tipo_local : [], endereco: d.endereco || '', cnpj: d.cnpj || '',
+    }))
+    destinosCache = { destinos, fetchedAt: Date.now() }
+    return destinos
+  } catch {
+    return []
+  }
+}
+
+// ── Geo ──
 function distanciaKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371
   const dLat = (lat2 - lat1) * Math.PI / 180
@@ -62,6 +86,31 @@ function naLoja(lat: number, lng: number): boolean {
   return distanciaKm(lat, lng, LOJA_LAT, LOJA_LNG) <= RAIO_LOJA_KM
 }
 
+// Encontra o destino mais próximo dentro do raio
+function findDestino(lat: number, lng: number, destinos: Destino[]): Destino | null {
+  let melhor: Destino | null = null
+  let melhorDist = Infinity
+  for (const d of destinos) {
+    if (!d.latitude || !d.longitude) continue
+    const dist = distanciaKm(lat, lng, d.latitude, d.longitude)
+    const raioKm = (d.raio || 500) / 1000
+    if (dist <= raioKm && dist < melhorDist) {
+      melhor = d; melhorDist = dist
+    }
+  }
+  return melhor
+}
+
+// Verifica se um destino é a loja/oficina
+function isDestinoLoja(destino: Destino | null): boolean {
+  if (!destino) return false
+  const nome = destino.nome.toLowerCase()
+  const tipos = destino.tipo_local.map(t => t.toLowerCase())
+  return nome.includes('nova tratores') || tipos.some(t => t.includes('base') || t.includes('matriz') || t.includes('sede'))
+    || distanciaKm(destino.latitude, destino.longitude, LOJA_LAT, LOJA_LNG) <= RAIO_LOJA_KM
+}
+
+// ── Types ──
 interface Posicao {
   dt_posicao: string; latitude: number; longitude: number
   velocidade: number; ignicao: number; adesao_id: number
@@ -71,6 +120,7 @@ interface Posicao {
 interface Evento {
   tipo: 'saida_loja' | 'chegada_cliente' | 'saida_cliente' | 'retorno_loja' | 'parada' | 'inicio_movimento'
   horario: string; lat: number; lng: number; na_loja: boolean
+  destino_nome?: string; destino_cnpj?: string
 }
 
 interface Viagem {
@@ -81,18 +131,23 @@ interface Viagem {
   ultima_posicao: { dt: string; lat: number; lng: number; ignicao: number; velocidade: number } | null
 }
 
-const DEBOUNCE_MIN = 3 // Ignora mudanças de ignição em menos de 3 minutos
+const DEBOUNCE_MIN = 3
+const HORA_INICIO_JORNADA = 5
 
-function detectarViagens(posicoes: Posicao[]): Viagem[] {
+function horaLocal(dt: string): number {
+  return new Date(dt).getHours()
+}
+
+function detectarViagens(posicoes: Posicao[], destinos: Destino[]): Viagem[] {
   if (posicoes.length === 0) return []
   const sorted = [...posicoes].sort((a, b) =>
     new Date(a.dt_posicao).getTime() - new Date(b.dt_posicao).getTime()
   )
 
-  // Agrupar por dia
   const porDia: Record<string, Posicao[]> = {}
   for (const p of sorted) {
-    const dia = p.dt_posicao.split('T')[0]
+    const d = new Date(p.dt_posicao)
+    const dia = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
     if (!porDia[dia]) porDia[dia] = []
     porDia[dia].push(p)
   }
@@ -107,21 +162,31 @@ function detectarViagens(posicoes: Posicao[]): Viagem[] {
     if (posDia.length < 2) continue
     const last = posDia[posDia.length - 1]
 
+    const posJornada = posDia.filter(p => horaLocal(p.dt_posicao) >= HORA_INICIO_JORNADA)
+    if (posJornada.length < 2) continue
+
     const eventos: Evento[] = []
-    let prevIgnicao = posDia[0].ignicao
-    let prevNaLoja = naLoja(posDia[0].latitude, posDia[0].longitude)
+    let prevIgnicao = posJornada[0].ignicao
+    // Checa se a primeira posição está na loja (por destino ou hardcoded)
+    const dest0 = findDestino(posJornada[0].latitude, posJornada[0].longitude, destinos)
+    let prevNaLoja = isDestinoLoja(dest0) || naLoja(posJornada[0].latitude, posJornada[0].longitude)
     let ultimoEventoTs = 0
     let saiuDaLoja = false
     let estaNoCliente = false
+    let destinoAtual: Destino | null = null // destino onde o técnico está parado
 
-    for (let i = 1; i < posDia.length; i++) {
-      const pos = posDia[i]
+    for (let i = 1; i < posJornada.length; i++) {
+      const pos = posJornada[i]
       const ts = new Date(pos.dt_posicao).getTime()
-      const estaNaLoja = naLoja(pos.latitude, pos.longitude)
       const ignicaoLigou = pos.ignicao === 1 && prevIgnicao === 0
       const ignicaoDesligou = pos.ignicao === 0 && prevIgnicao === 1
       const debounceOk = (ts - ultimoEventoTs) > DEBOUNCE_MIN * 60 * 1000
 
+      // Identifica destino mais próximo
+      const destProximo = findDestino(pos.latitude, pos.longitude, destinos)
+      const estaNaLoja = isDestinoLoja(destProximo) || naLoja(pos.latitude, pos.longitude)
+
+      // Saída da loja
       if (!saiuDaLoja && prevNaLoja && !estaNaLoja && pos.velocidade > 0) {
         eventos.push({ tipo: 'saida_loja', horario: pos.dt_posicao, lat: pos.latitude, lng: pos.longitude, na_loja: false })
         saiuDaLoja = true; ultimoEventoTs = ts
@@ -129,22 +194,41 @@ function detectarViagens(posicoes: Posicao[]): Viagem[] {
       if (!saiuDaLoja && ignicaoLigou && !estaNaLoja) {
         saiuDaLoja = true
       }
+
+      // Chegada no cliente: ignição desligou fora da loja
       if (saiuDaLoja && !estaNoCliente && ignicaoDesligou && !estaNaLoja && debounceOk) {
-        eventos.push({ tipo: 'chegada_cliente', horario: pos.dt_posicao, lat: pos.latitude, lng: pos.longitude, na_loja: false })
+        destinoAtual = destProximo // pode ser null se não está perto de nenhum destino cadastrado
+        eventos.push({
+          tipo: 'chegada_cliente', horario: pos.dt_posicao, lat: pos.latitude, lng: pos.longitude, na_loja: false,
+          destino_nome: destProximo?.nome, destino_cnpj: destProximo?.cnpj,
+        })
         estaNoCliente = true; ultimoEventoTs = ts
       }
+
+      // Saída do cliente: ignição ligou fora da loja
       if (estaNoCliente && ignicaoLigou && !estaNaLoja && debounceOk) {
-        eventos.push({ tipo: 'saida_cliente', horario: pos.dt_posicao, lat: pos.latitude, lng: pos.longitude, na_loja: false })
-        estaNoCliente = false; ultimoEventoTs = ts
+        eventos.push({
+          tipo: 'saida_cliente', horario: pos.dt_posicao, lat: pos.latitude, lng: pos.longitude, na_loja: false,
+          destino_nome: destinoAtual?.nome, destino_cnpj: destinoAtual?.cnpj,
+        })
+        estaNoCliente = false; destinoAtual = null; ultimoEventoTs = ts
       }
+
+      // Retorno à loja
       if (saiuDaLoja && !prevNaLoja && estaNaLoja) {
         eventos.push({ tipo: 'retorno_loja', horario: pos.dt_posicao, lat: pos.latitude, lng: pos.longitude, na_loja: true })
-        saiuDaLoja = false; estaNoCliente = false; ultimoEventoTs = ts
+        saiuDaLoja = false; estaNoCliente = false; destinoAtual = null; ultimoEventoTs = ts
       }
+
+      // Parada genérica (sem destino = posto, semáforo, etc)
       if (ignicaoDesligou && !estaNaLoja && !estaNoCliente && saiuDaLoja && debounceOk) {
-        eventos.push({ tipo: 'parada', horario: pos.dt_posicao, lat: pos.latitude, lng: pos.longitude, na_loja: false })
+        eventos.push({
+          tipo: 'parada', horario: pos.dt_posicao, lat: pos.latitude, lng: pos.longitude, na_loja: false,
+          destino_nome: destProximo?.nome, destino_cnpj: destProximo?.cnpj,
+        })
         ultimoEventoTs = ts
       }
+
       prevIgnicao = pos.ignicao
       prevNaLoja = estaNaLoja
     }
@@ -160,13 +244,12 @@ function detectarViagens(posicoes: Posicao[]): Viagem[] {
     })
   }
 
-  // Ordenar por data mais recente primeiro
   return viagens.sort((a, b) => b.data.localeCompare(a.data))
 }
 
 /**
  * GET /api/pos/rastreamento
- * acao: 'veiculos' | 'posicoes' | 'viagens' | 'explorar'
+ * acao: 'veiculos' | 'posicoes' | 'viagens' | 'destinos' | 'explorar'
  */
 export async function GET(req: NextRequest) {
   try {
@@ -191,7 +274,7 @@ export async function GET(req: NextRequest) {
         const dia = searchParams.get('data') || new Date().toISOString().split('T')[0]
         const where = JSON.stringify({
           adesao_id: Number(adesaoId),
-          dt_posicao: { $gte: `${dia}T00:00:00.000Z`, $lte: `${dia}T23:59:59.999Z` }
+          dt_posicao: { $gte: `${dia}T00:00:00.000-03:00`, $lte: `${dia}T23:59:59.999-03:00` }
         })
         const data = await fetchRotaExata('/posicoes', { where, limit, page: '0' })
         const posicoes = Array.isArray(data.data) ? data.data : []
@@ -199,7 +282,7 @@ export async function GET(req: NextRequest) {
       }
 
       case 'viagens': {
-        // Buscar veículos
+        const destinos = await getDestinos()
         const veiculosData = await fetchRotaExata('/adesoes', { limit: '200', page: '0' })
         const adesoes = veiculosData.data || []
 
@@ -215,12 +298,12 @@ export async function GET(req: NextRequest) {
           try {
             const where = JSON.stringify({
               adesao_id: adesao.id,
-              dt_posicao: { $gte: `${diaViagens}T00:00:00.000Z`, $lte: `${diaViagens}T23:59:59.999Z` }
+              dt_posicao: { $gte: `${diaViagens}T00:00:00.000-03:00`, $lte: `${diaViagens}T23:59:59.999-03:00` }
             })
             const posData = await fetchRotaExata('/posicoes', { where, limit: '5000', page: '0' })
             const posicoes: Posicao[] = Array.isArray(posData.data) ? posData.data : []
             if (posicoes.length > 0) {
-              todasViagens.push(...detectarViagens(posicoes))
+              todasViagens.push(...detectarViagens(posicoes, destinos))
             }
           } catch { /* ignora */ }
         }
@@ -228,11 +311,15 @@ export async function GET(req: NextRequest) {
         return NextResponse.json(todasViagens)
       }
 
+      case 'destinos': {
+        const destinos = await getDestinos()
+        return NextResponse.json(destinos)
+      }
+
       case 'explorar': {
         const token = await getToken()
         const results: Record<string, any> = {}
 
-        // Buscar adesões
         const adesaoRes = await fetch(`${API_URL}/adesoes?limit=10&page=0`, { headers: { Authorization: token } })
         const adesaoBody = await adesaoRes.json()
         const adesoes = adesaoBody.data || []
@@ -240,7 +327,6 @@ export async function GET(req: NextRequest) {
           id: a.id, placa: a.vei_placa, descricao: a.vei_descricao,
         }))
 
-        // Para cada veículo, buscar últimas posições
         for (const ad of adesoes.slice(0, 5)) {
           const key = `${ad.vei_placa} (${ad.vei_descricao || ad.id})`
           try {

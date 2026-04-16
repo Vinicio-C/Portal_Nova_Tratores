@@ -7,10 +7,10 @@ import { supabase } from '@/lib/supabase'
 import BlocoVisaoGeral from '@/components/painel-mecanicos/BlocoVisaoGeral'
 import BlocoAgenda from '@/components/painel-mecanicos/BlocoAgenda'
 import BlocoAlertas, { type Alerta } from '@/components/painel-mecanicos/BlocoAlertas'
-import BlocoTecnicos from '@/components/painel-mecanicos/BlocoTecnicos'
 import {
-  Users, AlertTriangle, RefreshCw,
-  AlertOctagon, X, LayoutDashboard, Calendar, Radar
+  AlertTriangle, RefreshCw,
+  AlertOctagon, X, Calendar, Radar,
+  ChevronLeft, ChevronRight
 } from 'lucide-react'
 
 interface Tecnico { user_id: string; tecnico_nome: string; tecnico_email: string; mecanico_role: 'tecnico' | 'observador' }
@@ -30,7 +30,7 @@ const TIPO_OCORRENCIA: Record<string, { label: string; color: string }> = {
   outros: { label: 'Outros', color: '#71717A' },
 }
 
-type Bloco = 'visao' | 'ordens' | 'alertas' | 'tecnicos'
+type Bloco = 'visao' | 'ordens' | 'alertas'
 
 export default function PainelMecanicosWrapper() {
   const { userProfile } = useAuth()
@@ -52,6 +52,7 @@ function PainelMecanicosPage() {
   const [loading, setLoading] = useState(true)
   const [blocoAtivo, setBlocoAtivo] = useState<Bloco>('visao')
   const [showOcorrenciaModal, setShowOcorrenciaModal] = useState(false)
+  const [semanaOffset, setSemanaOffset] = useState(0)
   const [novaOcorrencia, setNovaOcorrencia] = useState({ tecnico_nome: '', id_ordem: '', tipo: 'atraso', descricao: '', pontos_descontados: 0 })
 
   const carregar = useCallback(async () => {
@@ -119,10 +120,9 @@ function PainelMecanicosPage() {
   )
 
   const TABS: { id: Bloco; label: string; icon: React.ReactNode; count?: number }[] = [
-    { id: 'visao', label: 'Monitor', icon: <Radar size={18} /> },
-    { id: 'ordens', label: 'Agenda', icon: <Calendar size={18} />, count: ordensAtivasCount },
-    { id: 'alertas', label: 'Alertas', icon: <AlertTriangle size={18} />, count: alertasAbertosCount },
-    { id: 'tecnicos', label: 'Equipe', icon: <Users size={18} />, count: tecnicosAtivos.length },
+    { id: 'visao', label: 'Monitor', icon: <Radar size={14} /> },
+    { id: 'ordens', label: 'Agenda', icon: <Calendar size={14} /> },
+    { id: 'alertas', label: 'Alertas', icon: <AlertTriangle size={14} />, count: alertasAbertosCount },
   ]
 
   const INP: React.CSSProperties = { width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #E4E4E7', fontSize: 13, boxSizing: 'border-box', background: '#FAFAFA', outline: 'none', color: '#18181B' }
@@ -130,22 +130,47 @@ function PainelMecanicosPage() {
 
   return (
     <div style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif', minHeight: 'calc(100vh - 84px)', position: 'relative' }}>
-      <style>{`
-        .pm-fab { transition: all .15s; position: relative; }
-        .pm-fab:hover { background: #374151 !important; }
-        .pm-fab .pm-fab-label { opacity:0; transform:translateX(6px); transition: all .15s; pointer-events:none; }
-        .pm-fab:hover .pm-fab-label { opacity:1; transform:translateX(0); }
-      `}</style>
-
       {/* ══ CONTEUDO PRINCIPAL ══ */}
       <div style={{ padding: '16px 20px', overflow: 'auto' }}>
-        {/* Header compacto */}
+        {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <h1 style={{ fontSize: 20, fontWeight: 800, color: '#111827', margin: 0 }}>Painel Mecanicos</h1>
-            <span style={{ fontSize: 13, color: '#9CA3AF', fontWeight: 500 }}>
-              {tecnicosAtivos.length} tec / {ordens.filter(o => o.Status === 'Execução').length} em exec / {new Date().toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short' })}
-            </span>
+            {/* Tabs de navegação */}
+            <div style={{ display: 'flex', gap: 2 }}>
+              {TABS.map(t => {
+                const active = blocoAtivo === t.id
+                return (
+                  <button key={t.id} onClick={() => setBlocoAtivo(t.id)} style={{
+                    display: 'flex', alignItems: 'center', gap: 4,
+                    padding: '5px 12px', borderRadius: 6, border: 'none', cursor: 'pointer',
+                    background: active ? '#111827' : 'transparent',
+                    color: active ? '#fff' : '#9CA3AF',
+                    fontSize: 12, fontWeight: active ? 600 : 500, transition: 'all .15s',
+                  }}>
+                    {t.icon}
+                    {t.label}
+                    {(t.count !== undefined && t.count > 0) && (
+                      <span style={{ fontSize: 10, fontWeight: 700, background: active ? 'rgba(255,255,255,.2)' : '#F3F4F6', color: active ? '#fff' : '#999', padding: '0 5px', borderRadius: 4, lineHeight: '16px' }}>{t.count}</span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+            {/* Setas semana (só na Agenda) */}
+            {blocoAtivo === 'ordens' && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 4 }}>
+                <button onClick={() => setSemanaOffset(p => p - 1)} style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid #E0E0E0', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                  <ChevronLeft size={14} color="#555" />
+                </button>
+                <button onClick={() => setSemanaOffset(p => p + 1)} style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid #E0E0E0', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                  <ChevronRight size={14} color="#555" />
+                </button>
+                {semanaOffset !== 0 && (
+                  <button onClick={() => setSemanaOffset(0)} style={{ fontSize: 11, fontWeight: 600, color: '#111', background: '#F3F4F6', border: '1px solid #E5E7EB', borderRadius: 6, padding: '4px 10px', cursor: 'pointer' }}>Hoje</button>
+                )}
+              </div>
+            )}
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
             <button onClick={() => setShowOcorrenciaModal(true)} style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#111827', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 12px', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>
@@ -154,60 +179,15 @@ function PainelMecanicosPage() {
             <button onClick={carregar} style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#fff', color: '#6B7280', border: '1px solid #E5E7EB', borderRadius: 6, padding: '6px 12px', fontSize: 12, cursor: 'pointer' }}>
               <RefreshCw size={12} /> Atualizar
             </button>
+            <a href="/tv-painel" target="_blank" rel="noopener" style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#fff', color: '#6B7280', border: '1px solid #E5E7EB', borderRadius: 6, padding: '6px 12px', fontSize: 12, textDecoration: 'none', fontWeight: 500 }}>TV</a>
           </div>
         </div>
 
         {blocoAtivo === 'visao' && <BlocoVisaoGeral tecnicos={tecnicos} ordens={ordens} caminhos={caminhos} />}
-        {blocoAtivo === 'ordens' && <BlocoAgenda tecnicos={tecnicos} ordens={ordens} />}
-        {blocoAtivo === 'alertas' && <BlocoAlertas tecnicos={tecnicos} alertas={alertas} onRecarregar={carregar} userName={userProfile?.nome || ''} />}
-        {blocoAtivo === 'tecnicos' && <BlocoTecnicos tecnicos={tecnicos} ordens={ordens} execucoes={execucoesRecentes} ocorrencias={ocorrencias} justificativas={justificativas} reqsMecanico={reqsMecanico} pontuacaoTecnico={pontuacaoTecnico} ordensAtrasoPorTecnico={ordensAtrasoPorTecnico} ordensPorTecnico={ordensPorTecnico} onAprovarRequisicao={aprovarRequisicao} onRecusarRequisicao={recusarRequisicao} onAvaliarJustificativa={avaliarJustificativa} tipoOcorrencia={TIPO_OCORRENCIA} />}
+        {blocoAtivo === 'ordens' && <BlocoAgenda tecnicos={tecnicos} ordens={ordens} semanaOffset={semanaOffset} />}
+        {blocoAtivo === 'alertas' && <BlocoAlertas tecnicos={tecnicos} alertas={alertas} onRecarregar={carregar} userName={userProfile?.nome || ''} ordens={ordens} reqsMecanico={reqsMecanico} justificativas={justificativas} ocorrencias={ocorrencias} onAprovarRequisicao={aprovarRequisicao} onRecusarRequisicao={recusarRequisicao} onAvaliarJustificativa={avaliarJustificativa} tipoOcorrencia={TIPO_OCORRENCIA} />}
       </div>
 
-      {/* ══ FLOATING NAV ══ */}
-      <div style={{
-        position: 'fixed', right: 14, top: 14,
-        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, zIndex: 50,
-        background: '#111827', borderRadius: 28, padding: '8px 6px',
-        boxShadow: '0 2px 12px rgba(0,0,0,.15)',
-      }}>
-        {TABS.map((t) => {
-          const active = blocoAtivo === t.id
-          return (
-            <button key={t.id} onClick={() => setBlocoAtivo(t.id)}
-              className="pm-fab"
-              style={{
-                width: 40, height: 40, borderRadius: '50%',
-                background: active ? '#fff' : 'transparent',
-                border: 'none', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: active ? '#111827' : '#6B7280',
-              }}
-            >
-              {t.icon}
-              <span className="pm-fab-label" style={{
-                position: 'absolute', right: '110%', whiteSpace: 'nowrap',
-                background: '#111827', color: '#fff', padding: '4px 10px', borderRadius: 6,
-                fontSize: 11, fontWeight: 600,
-              }}>{t.label}</span>
-              {(t.count !== undefined && t.count > 0) && (
-                <span style={{
-                  position: 'absolute', top: 2, right: 2, fontSize: 8, fontWeight: 700,
-                  minWidth: 14, height: 14, lineHeight: '14px', textAlign: 'center',
-                  borderRadius: 7, background: '#DC2626', color: '#fff',
-                }}>
-                  {t.count}
-                </span>
-              )}
-            </button>
-          )
-        })}
-        <div style={{ width: 20, height: 1, background: '#374151', margin: '2px 0' }} />
-        <a href="/tv-painel" target="_blank" rel="noopener" style={{
-          width: 32, height: 32, borderRadius: '50%', background: 'transparent',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: '#6B7280', fontSize: 10, fontWeight: 700, textDecoration: 'none',
-        }}>TV</a>
-      </div>
 
       {/* ══ MODAL OCORRENCIA ══ */}
       {showOcorrenciaModal && (

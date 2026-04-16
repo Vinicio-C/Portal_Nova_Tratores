@@ -78,6 +78,9 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   const [relatorioTecnico, setRelatorioTecnico] = useState("");
   const [previsaoExecucao, setPrevisaoExecucao] = useState("");
   const [previsaoFaturamento, setPrevisaoFaturamento] = useState("");
+  const [horaInicioExec, setHoraInicioExec] = useState("08:00");
+  const [horaFimExec, setHoraFimExec] = useState("");
+  const [agendaTecnico, setAgendaTecnico] = useState<Array<{ id_ordem: string; cliente: string; hora_inicio: string; hora_fim: string; qtd_horas: number }>>([]);
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [totalPecas, setTotalPecas] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -91,6 +94,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   const [justificativaDesvinc, setJustificativaDesvinc] = useState("");
   const [clienteFilter, setClienteFilter] = useState("");
   const [gerarPPV, setGerarPPV] = useState(false);
+  const [servicoOficina, setServicoOficina] = useState(false);
   const [enviandoOmie, setEnviandoOmie] = useState(false);
   const [showDescontos, setShowDescontos] = useState(false);
   const [dadosTecnico, setDadosTecnico] = useState<any>(null);
@@ -111,6 +115,30 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   const [erroEstimativa, setErroEstimativa] = useState("");
   const [enderecoEstimativa, setEnderecoEstimativa] = useState("");
   const [enderecosDisponiveis, setEnderecosDisponiveis] = useState<{ label: string; fonte: string; endereco: string }[]>([]);
+
+  // Auto-calcular hora fim quando muda hora início ou qtdHoras
+  useEffect(() => {
+    if (!horaInicioExec || !qtdHoras || qtdHoras <= 0) return;
+    const [h, m] = horaInicioExec.split(':').map(Number);
+    const totalMin = h * 60 + m + qtdHoras * 60;
+    const fh = Math.floor(totalMin / 60);
+    const fm = Math.round(totalMin % 60);
+    setHoraFimExec(`${String(fh).padStart(2, '0')}:${String(fm).padStart(2, '0')}`);
+  }, [horaInicioExec, qtdHoras]);
+
+  // Buscar agenda do técnico quando muda técnico + data de execução
+  useEffect(() => {
+    if (!tecnico1 || !previsaoExecucao) { setAgendaTecnico([]); return; }
+    fetch(`/api/pos/agenda-visao?data=${previsaoExecucao}&tecnico=${encodeURIComponent(tecnico1)}`)
+      .then(r => r.ok ? r.json() : [])
+      .then((rows: any[]) => {
+        const outros = rows
+          .filter((r: any) => r.id_ordem && String(r.id_ordem) !== String(osId))
+          .map((r: any) => ({ id_ordem: r.id_ordem, cliente: r.cliente || '', hora_inicio: r.hora_inicio || '', hora_fim: r.hora_fim || '', qtd_horas: r.qtd_horas || 0 }));
+        setAgendaTecnico(outros);
+      })
+      .catch(() => setAgendaTecnico([]));
+  }, [tecnico1, previsaoExecucao, osId]);
 
   // Carregar listas para dropdown de substituto
   useEffect(() => {
@@ -301,15 +329,17 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
     setSaving(true);
     const dados = {
       id: osId, nomeCliente: clienteInfo?.nome, cpfCliente: clienteInfo?.cpf,
-      enderecoCliente: clienteInfo?.endereco, cidadeCliente: clienteInfo?.cidade || '', tecnicoResponsavel: tecnico1, tecnico2,
+      enderecoCliente: servicoOficina ? 'Nova Tratores - Av. São Sebastião, 1065 - Vila Campos, Piraju - SP' : clienteInfo?.endereco,
+      cidadeCliente: servicoOficina ? 'Piraju' : (clienteInfo?.cidade || ''), tecnicoResponsavel: tecnico1, tecnico2,
       tipoServico, revisao, projeto, servicoSolicitado: servSolicitado,
       qtdHoras, qtdKm, ppv, status: mode === "create" ? "Orçamento" : status,
       ordemOmie, motivoCancelamento: motivoCancel,
       substitutoTipo: temSubstituto ? substitutoTipo : null,
       substitutoId: temSubstituto ? substitutoId : null,
       descontoValor: descValor, descontoHora: descHoraValor, descontoKm: descKmValor,
-      relatorioTecnico, previsaoExecucao, previsaoFaturamento,
+      relatorioTecnico, previsaoExecucao, previsaoFaturamento, horaInicioExec, horaFimExec,
       gerarPPV: mode === "create" && tipoServico === "Revisão" && gerarPPV,
+      servicoOficina,
       userName,
     };
     try {
@@ -334,7 +364,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   }, [mode, osId, clienteChave, clienteInfo, tecnico1, tecnico2, tipoServico, revisao, projeto,
       servSolicitado, qtdHoras, qtdKm, ppv, status, ordemOmie, motivoCancel, descValor,
       descHoraValor, descKmValor, relatorioTecnico, previsaoExecucao, previsaoFaturamento,
-      gerarPPV, onClose, onSaved]);
+      gerarPPV, servicoOficina, horaInicioExec, horaFimExec, onClose, onSaved]);
 
   // ── Reset form to defaults ──
   const resetForm = useCallback(() => {
@@ -344,11 +374,12 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
     setPpv(""); setQtdHoras(1); setQtdKm(0); setDescPorc(0); setDescValor(0); setDescHoraValor(0); setDescKmValor(0);
     setOrdemOmie(""); setMotivoCancel(""); setTemSubstituto(false); setSubstitutoTipo("POS"); setSubstitutoId("");
     setRelatorioTecnico("");
-    setPrevisaoExecucao(""); setPrevisaoFaturamento("");
+    setPrevisaoExecucao(""); setPrevisaoFaturamento(""); setHoraInicioExec("08:00"); setHoraFimExec(""); setAgendaTecnico([]);
     setEstimativa(null); setErroEstimativa(""); setLoadingEstimativa(false); setEnderecoEstimativa(""); setEnderecosDisponiveis([]);
     setProdutos([]); setTotalPecas(0); setShowLogs(false); setRequisicoes([]);
     setGerarPPV(false); setShowDescontos(false); setLoadingData(false);
     setLembretes([]); setEditingLembreteId(null);
+    setServicoOficina(false);
   }, []);
 
   // ── Effects ──
@@ -395,7 +426,10 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
           setRelatorioTecnico(d.relatorioTecnico || "");
           setPrevisaoExecucao(d.previsaoExecucao || "");
           setPrevisaoFaturamento(d.previsaoFaturamento || "");
+          setHoraInicioExec(d.horaInicioExec || "08:00");
+          setHoraFimExec(d.horaFimExec || "");
           setRequisicoes(d.infoRequisicoes || []);
+          setServicoOficina(!!d.servicoOficina);
           setDadosTecnico(d.dadosTecnico || null);
           setShowDescontos(dv > 0 || dh > 0 || dk > 0);
           if (d.ppv) loadPPV(d.ppv);
@@ -520,10 +554,42 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                       <div className="os-client-badge">
                         <div><i className="fas fa-check-circle" /> {clienteInfo.nome}
                         {clienteInfo.cpf && <span style={S_CLIENT_BADGE_CPF}>({clienteInfo.cpf})</span>}</div>
-                        {(clienteInfo.endereco || clienteInfo.cidade) && (
-                          <div style={{ fontSize: 11, color: '#7A6E5D', marginTop: 4 }}>
+                        <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <i className="fas fa-map-marker-alt" style={{ color: '#7A6E5D', fontSize: 12, flexShrink: 0 }} />
+                            <input
+                              type="text"
+                              value={clienteInfo.endereco || ''}
+                              onChange={(e) => setClienteInfo(prev => prev ? { ...prev, endereco: e.target.value } : prev)}
+                              placeholder="Endereço do cliente..."
+                              style={{ flex: 1, fontSize: 12, padding: '5px 8px', border: '1px solid #E0D6C8', borderRadius: 6, background: '#FAFAF5', color: '#333', outline: 'none' }}
+                            />
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <i className="fas fa-city" style={{ color: '#7A6E5D', fontSize: 12, flexShrink: 0 }} />
+                            <input
+                              type="text"
+                              value={clienteInfo.cidade || ''}
+                              onChange={(e) => setClienteInfo(prev => prev ? { ...prev, cidade: e.target.value } : prev)}
+                              placeholder="Cidade..."
+                              style={{ flex: 1, fontSize: 12, padding: '5px 8px', border: '1px solid #E0D6C8', borderRadius: 6, background: '#FAFAF5', color: '#333', outline: 'none' }}
+                            />
+                          </div>
+                        </div>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, color: servicoOficina ? '#065F46' : '#7A6E5D' }}>
+                          <input
+                            type="checkbox"
+                            checked={servicoOficina}
+                            onChange={(e) => setServicoOficina(e.target.checked)}
+                            style={{ width: 16, height: 16, accentColor: '#065F46' }}
+                          />
+                          <i className="fas fa-warehouse" style={{ fontSize: 14 }} />
+                          Serviço realizado na oficina
+                        </label>
+                        {servicoOficina && (
+                          <div style={{ fontSize: 11, color: '#065F46', marginTop: 4, background: '#D1FAE5', padding: '4px 8px', borderRadius: 4 }}>
                             <i className="fas fa-map-marker-alt" style={{ marginRight: 4 }} />
-                            {[clienteInfo.endereco, clienteInfo.cidade].filter(Boolean).join(" - ")}
+                            Endereço será salvo como: Nova Tratores - Piraju (SP)
                           </div>
                         )}
                       </div>
@@ -905,6 +971,31 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                         <input type="date" value={previsaoFaturamento} onChange={(e) => setPrevisaoFaturamento(e.target.value)} style={S_MB0} />
                       </div>
                     </div>
+                    <div className="os-row" style={{ marginTop: 8 }}>
+                      <div style={S_FLEX1}>
+                        <label>Hora Início</label>
+                        <input type="time" value={horaInicioExec} onChange={(e) => setHoraInicioExec(e.target.value)} style={S_MB0} />
+                      </div>
+                      <div style={S_FLEX1}>
+                        <label>Hora Fim <span style={{ fontSize: 10, color: '#999', fontWeight: 400 }}>(auto)</span></label>
+                        <input type="time" value={horaFimExec} onChange={(e) => setHoraFimExec(e.target.value)} style={S_MB0} />
+                      </div>
+                    </div>
+                    {agendaTecnico.length > 0 && (
+                      <div style={{ marginTop: 8, padding: '10px 12px', background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 8 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#92400E', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <i className="fas fa-exclamation-triangle" /> {tecnico1} já tem {agendaTecnico.length} serviço{agendaTecnico.length > 1 ? 's' : ''} em {new Date(previsaoExecucao + 'T12:00:00').toLocaleDateString('pt-BR')}:
+                        </div>
+                        {agendaTecnico.map((ag, i) => (
+                          <div key={i} style={{ fontSize: 12, color: '#78350F', padding: '4px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontWeight: 700 }}>{ag.id_ordem}</span>
+                            <span>{ag.cliente}</span>
+                            {ag.hora_inicio && <span style={{ fontWeight: 600, color: '#B45309' }}>{ag.hora_inicio}–{ag.hora_fim || '?'}</span>}
+                            <span style={{ color: '#92400E' }}>{ag.qtd_horas}h</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     {previsaoExecucao && previsaoFaturamento && previsaoFaturamento >= previsaoExecucao && (() => {
                       const d1 = new Date(previsaoExecucao + 'T00:00:00');
                       const d2 = new Date(previsaoFaturamento + 'T00:00:00');

@@ -66,6 +66,8 @@ export async function POST(req: NextRequest) {
         tempo_volta_min: 0,
         distancia_volta_km: 0,
         qtd_horas: horasOS,
+        hora_inicio: o.horaInicio || "",
+        hora_fim: o.horaFim || "",
         ordem_sequencia: seq,
         status: "pendente",
         observacoes: o.observacoes || "",

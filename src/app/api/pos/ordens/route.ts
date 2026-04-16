@@ -391,6 +391,9 @@ export async function POST(req: NextRequest) {
     Desconto_KM: parseFloat(dados.descontoKm || 0),
     Previsao_Execucao: dados.previsaoExecucao || null,
     Previsao_Faturamento: dados.previsaoFaturamento || null,
+    Servico_Oficina: !!dados.servicoOficina,
+    Hora_Inicio_Exec: dados.horaInicioExec || '',
+    Hora_Fim_Exec: dados.horaFimExec || '',
   });
 
   if (error) {

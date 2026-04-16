@@ -82,6 +82,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     descontoKm: safeGet(row, "Desconto_KM"),
     previsaoExecucao: safeGet(row, "Previsao_Execucao") || "",
     previsaoFaturamento: safeGet(row, "Previsao_Faturamento") || "",
+    servicoOficina: !!safeGet(row, "Servico_Oficina"),
+    horaInicioExec: safeGet(row, "Hora_Inicio_Exec") || "",
+    horaFimExec: safeGet(row, "Hora_Fim_Exec") || "",
     dadosTecnico: tecData ? {
       tipoServico: tecData.TipoServico,
       diagnostico: tecData.Motivo,
@@ -232,6 +235,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     Desconto_KM: descKm,
     Previsao_Execucao: dados.previsaoExecucao || null,
     Previsao_Faturamento: dados.previsaoFaturamento || null,
+    Servico_Oficina: !!dados.servicoOficina,
+    Hora_Inicio_Exec: dados.horaInicioExec || '',
+    Hora_Fim_Exec: dados.horaFimExec || '',
   }).eq("Id_Ordem", idOs);
 
   if (error) {
@@ -267,6 +273,46 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           status: 'agendado',
         }))
       );
+    }
+  }
+
+  // Atualizar endereço + recalcular rotas na agenda_visao quando endereço muda
+  const enderecoNovo = dados.enderecoCliente || "";
+  const cidadeNova = dados.cidadeCliente || "";
+  if (enderecoNovo) {
+    const { data: agendaRows } = await supabase
+      .from("agenda_visao")
+      .select("id, endereco, cidade, cliente")
+      .eq("id_ordem", idOs);
+
+    if (agendaRows && agendaRows.length > 0) {
+      for (const row of agendaRows) {
+        // Atualizar endereço e cidade + disparar recálculo
+        await supabase.from("agenda_visao").update({
+          endereco: enderecoNovo,
+          cidade: cidadeNova,
+          cliente: dados.nomeCliente || row.cliente,
+          hora_inicio: dados.horaInicioExec || "",
+          hora_fim: dados.horaFimExec || "",
+          updated_at: new Date().toISOString(),
+        }).eq("id", row.id);
+
+        // Recalcular rota (geocode + distância) em background
+        try {
+          const { geocodificar, rotaDaOficina } = await import("@/lib/pos/ors");
+          const coords = await geocodificar(enderecoNovo + ", Brasil");
+          if (coords) {
+            const rota = await rotaDaOficina(coords.lat, coords.lng);
+            await supabase.from("agenda_visao").update({
+              coordenadas: coords,
+              tempo_ida_min: rota?.tempo_min || 0,
+              distancia_ida_km: rota?.distancia_km || 0,
+              tempo_volta_min: rota?.tempo_min || 0,
+              distancia_volta_km: rota?.distancia_km || 0,
+            }).eq("id", row.id);
+          }
+        } catch { /* geocode falhou, segue sem rota */ }
+      }
     }
   }
 
