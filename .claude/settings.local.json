@@ -485,7 +485,8 @@
       "Bash(curl -s \"http://localhost:3000/api/pos/geocode?lat=-23.2135906&lng=-49.3784353\" 2>/dev/null && echo \"\" && curl -s \"http://localhost:3000/api/pos/geocode?lat=-23.3819526&lng=-49.2640061\" 2>/dev/null && echo \"\" && curl -s \"http://localhost:3000/api/pos/geocode?lat=-23.4135581&lng=-49.3389423\" 2>/dev/null)",
       "Bash(node -e \"const https=require\\('https'\\);https.get\\('https://photon.komoot.io/reverse?lat=-23.4135581&lon=-49.3389423&lang=default',res=>{let d='';res.on\\('data',c=>d+=c\\);res.on\\('end',\\(\\)=>console.log\\(d\\)\\)}\\).on\\('error',e=>console.log\\(e.message\\)\\);\" 2>&1)",
       "Bash(curl -s \"http://localhost:3000/api/pos/geocode?lat=-23.2135906&lng=-49.3784353\" && echo \"\" && curl -s \"http://localhost:3000/api/pos/geocode?lat=-23.3819526&lng=-49.2640061\" && echo \"\" && curl -s \"http://localhost:3000/api/pos/geocode?lat=-23.4135581&lng=-49.3389423\")",
-      "Bash(find /c/projetos/portal/src -type d -name \"*pos*\" 2>/dev/null | head -20)"
+      "Bash(find /c/projetos/portal/src -type d -name \"*pos*\" 2>/dev/null | head -20)",
+      "Bash(git push:*)"
     ]
   }
 }
